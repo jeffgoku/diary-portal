@@ -27,7 +27,8 @@
     
     # 2.2 账单统计信息
     - /bill/ # 日记中的账单类别统计信息 `2022-05-24`
-
+    - /bill/keys # 所有账单条目列表 `2023-12-20`
+    - /bill/sorted # 所有账单展示
 
 # 3. 用户管理
 - /user/
@@ -46,7 +47,6 @@
 - /diary-category/list # 类别管理 `2022-05-24`
 - /diary-category/delete
 
-
 # 5. 邀请码管理
 - /invitation/generate # 生成新的
 - /invitation/mark-shared # 标记邀请码为已用
@@ -59,6 +59,22 @@
 - /statistic/year # 年份日记统计
 - /statistic/users # 用户的日记、码表、qr 等数量
 - /statistic/weather # 所有日记的气温信息
+
+# 7. 路书数据：未开放
+地图路线
+- /map-route/list
+- /map-route/detail
+- /map-route/add
+- /map-route/modify
+- /map-route/delete
+
+地图信息
+- /map-pointer/list
+- /map-pointer/detail
+- /map-pointer/add
+- /map-pointer/modify
+- /map-pointer/delete
+
 ```
 
 
@@ -168,7 +184,7 @@ npm run start
    ```
    然后添加以下内容到打开的窗口中，意思就是说第小时的 17 分统计并更新用户数据，下面的 js 路径改成自己系统中的 JS 路径。
    ```bash
-   17 * * * * node /var/www/html/portal/routes/statistic/updateUserInfo.js
+   17 * * * * node /var/www/html/portal/routes/cron/updateUserInfo.js
    ```
    然后重启 cron 服务
    ```bash
