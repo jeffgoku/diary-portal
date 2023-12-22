@@ -60,7 +60,7 @@
 - /statistic/users # 用户的日记、码表、qr 等数量
 - /statistic/weather # 所有日记的气温信息
 
-# 7. 路书数据：未开放
+# 7. 路书数据
 地图路线
 - /map-route/list
 - /map-route/detail
