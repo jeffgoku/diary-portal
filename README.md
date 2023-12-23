@@ -2,11 +2,11 @@
 
 
 ## 一、项目说明
-该服务的项目：  
+该后台服务的项目：  
 - [《标题日记》](https://github.com/KyleBing/diary-vue)
 - [《路书》](https://github.com/KyleBing/map)
-- 《我的后台》
-- 《挪车二维码》
+- 《我的后台》`未开源`
+- 《挪车二维码》`未开源`
 
 > 线上已运行的例子：  
 > http [http://kylebing.cn:3000/diary/detail?diaryId=6766](http://kylebing.cn:3000/diary/detail?diaryId=6766)
