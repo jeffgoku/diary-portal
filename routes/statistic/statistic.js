@@ -92,30 +92,30 @@ router.get('/category', (req, res, next) => {
 // 年份月份数据
 router.get('/year', (req, res, next) => {
     utility
-        .verifyAuthorization(req)
-        .then(userInfo => {
-            let yearNow = new Date().getFullYear()
-            let sqlRequests = []
-            for (let year = 1991; year <= yearNow; year++) {
-                let sqlArray = []
-                sqlArray.push(`
+        .verifyauthorization(req)
+        .then(userinfo => {
+            let yearnow = new date().getfullyear()
+            let sqlrequests = []
+            for (let year = 1991; year <= yearnow; year++) {
+                let sqlarray = []
+                sqlarray.push(`
                 select 
-                date_format(date,'%Y%m') as id,
+                date_format(date,'%y%m') as id,
                 date_format(date,'%m') as month,
                 count(*) as 'count'
                 from diaries 
                 where year(date) = ${year}
-                and uid = ${userInfo.uid}
+                and uid = ${userinfo.uid}
                 group by month
                 order by month desc
         `)
-                sqlRequests.push(utility.getDataFromDB('diary', sqlArray))
+                sqlrequests.push(utility.getdatafromdb('diary', sqlarray))
             }
             // 这里有个异步运算的弊端，所有结果返回之后，我需要重新给他们排序，因为他们的返回顺序是不定的。难搞哦
-            Promise.all(sqlRequests)
+            promise.all(sqlrequests)
                 .then(values => {
                     let response = []
-                    values.forEach(data => {
+                    values.foreach(data => {
                         if (data.length > 0) { // 只统计有数据的年份
                             response.push({
                                 year: data[0].id.substring(0, 4),
@@ -125,14 +125,14 @@ router.get('/year', (req, res, next) => {
                         }
                     })
                     response.sort((a, b) => a.year > b.year ? 1 : -1)
-                    res.send(new ResponseSuccess(response))
+                    res.send(new responsesuccess(response))
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err, err.message))
+                    res.send(new responseerror(err, err.message))
                 })
         })
-        .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+        .catch(errinfo => {
+            res.send(new responseerror('', errinfo))
         })
 
 })
@@ -141,24 +141,19 @@ router.get('/year', (req, res, next) => {
 router.get('/users', (req, res, next) => {utility
     .verifyAuthorization(req)
     .then(userInfo => {
-        if (userInfo.email === configProject.adminCount) {
-            let sqlArray = []
-            sqlArray.push(`
-                                select uid, email, last_visit_time, nickname, register_time, count_diary, count_dict, count_map_route, sync_count
-                                from users
+        let sqlArray = []
+        sqlArray.push(`
+                                select uid, last_visit_time, nickname, register_time, count_diary, count_dict, count_map_route, sync_count
+                                from users where count_diary >= 5 or sync_count >= 5 or count_map_route >=1
                             `)
-            utility
-                .getDataFromDB('diary', sqlArray)
-                .then(data => {
-                    res.send(new ResponseSuccess(data))
-                })
-                .catch(err => {
-                    res.send(new ResponseError(err, err.message))
-                })
-        } else {
-            res.send(new ResponseError('', '没有权限查看此信息'))
-        }
-
+        utility
+            .getDataFromDB('diary', sqlArray)
+            .then(data => {
+                res.send(new ResponseSuccess(data))
+            })
+            .catch(err => {
+                res.send(new ResponseError(err, err.message))
+            })
     })
     .catch(errInfo => {
         res.send(new ResponseError('', errInfo))

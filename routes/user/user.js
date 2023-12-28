@@ -8,6 +8,7 @@ const bcrypt = require('bcrypt')
 
 
 
+
 /* GET users listing. */
 router.post('/register', (req, res, next) => {
     // TODO: 验证传过来的数据库必填项
@@ -206,6 +207,21 @@ router.get('/detail', (req, res, next) => {
             res.send(new ResponseError(err, err.message))
         })
 })
+
+
+router.get('/avatar', (req, res, next) => {
+    let sqlArray = []
+    sqlArray.push(`select avatar from users where email = '${req.query.email}'`)
+    utility
+        .getDataFromDB( 'diary', sqlArray, true)
+        .then(data => {
+            res.send(new ResponseSuccess(data))
+        })
+        .catch(err => {
+            res.send(new ResponseError(err, err.message))
+        })
+})
+
 
 router.post('/add', (req, res, next) => {
     checkEmailOrUserNameExist(req.body.email, req.body.username)
@@ -453,10 +469,10 @@ router.delete('/destroy-account', (req, res, next) => {
             let connection = utility.getMysqlConnection('diary')
             connection.beginTransaction(transactionError => {
                 if (transactionError){
-                    connection.end()
                     connection.rollback(err => {
                         res.send(new ResponseError('', 'beginTransaction: 事务执行失败，已回滚'))
                     })
+                    connection.end()
                 } else {
                     let sql = `
                                 delete from diaries where uid = ${userInfo.uid}; 
