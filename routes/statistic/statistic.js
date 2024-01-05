@@ -92,7 +92,7 @@ router.get('/category', (req, res, next) => {
 // 年份月份数据
 router.get('/year', (req, res, next) => {
     utility
-        .verifyauthorization(req)
+        .verifyAuthorization(req)
         .then(userinfo => {
             let yearnow = new date().getfullyear()
             let sqlrequests = []
@@ -125,14 +125,14 @@ router.get('/year', (req, res, next) => {
                         }
                     })
                     response.sort((a, b) => a.year > b.year ? 1 : -1)
-                    res.send(new responsesuccess(response))
+                    res.send(new ResponseSuccess(response))
                 })
                 .catch(err => {
-                    res.send(new responseerror(err, err.message))
+                    res.send(new ResponseError(err, err.message))
                 })
         })
         .catch(errinfo => {
-            res.send(new responseerror('', errinfo))
+            res.send(new ResponseError('', errinfo))
         })
 
 })

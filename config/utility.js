@@ -146,7 +146,7 @@ function processBillOfDay(diaryObj, filterKeywords = []){
                 if(item.trim().length <= 0)
                     return false
 
-                return reg?.test(item) ?? false;
+                return reg == null || reg.test(item);
             })
 
     let response = {
