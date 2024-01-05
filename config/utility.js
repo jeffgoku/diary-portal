@@ -138,13 +138,15 @@ function updateUserLastLoginTime(uid){
 // 处理账单文本内容，转成格式化的账单数据
 function processBillOfDay(diaryObj, filterKeywords = []){
     let str = diaryObj.content.replace(/ +/g, ' ') // 替换掉所有多个空格的间隔，改为一个空格
+    let reg = filterKeywords.length > 0 ? new RegExp(`.*(${filterKeywords.join('|')}).*`, 'ig') : null;
     let strArray =
         str
             .split('\n')
-            .filter(item => item.trim().length > 0)
-            .filter(item => { // {item, price}
-                let reg = new RegExp(`.*(${filterKeywords.join('|')}).*`, 'ig')
-                return reg.test(item)
+            .filter(item => {
+                if(item.trim().length <= 0)
+                    return false
+
+                return reg?.test(item) ?? false;
             })
 
     let response = {
