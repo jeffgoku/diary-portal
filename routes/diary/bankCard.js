@@ -10,11 +10,8 @@ router.get('/', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let sqlArray = []
-            sqlArray.push(`select * from diaries where title = '我的银行卡列表' and uid = ${userInfo.uid}`) // 固定 '银行卡列表' 为标题的日记作为存储银行卡列表
             // 2. 查询出日记结果
-            utility
-                .getDataFromDB( 'diary', sqlArray, true)
+            utility.knex('diaries').select().where('title', '我的银行卡列表').andWhere('uid', userInfo.uid) // 固定 '银行卡列表' 为标题的日记作为存储银行卡列表
                 .then(dataDiary => {
                     if (dataDiary) {
                         // decode unicode

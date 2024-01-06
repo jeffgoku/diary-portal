@@ -3,8 +3,6 @@ const router = express.Router()
 const utility = require('../config/utility')
 const ResponseSuccess = require("../response/ResponseSuccess");
 const ResponseError = require("../response/ResponseError");
-const mysql = require("mysql");
-const configDatabase = require("../config/configDatabase");
 const { stat, writeFile } = require("fs");
 
 const LOCK_FILE_NAME = 'DATABASE_LOCK'
@@ -17,14 +15,9 @@ router.get('/', (req, res, next) => {
             let tempConfigDatabase = {}
             Object.assign(tempConfigDatabase, configDatabase)
             delete tempConfigDatabase.database
-            let connection = mysql.createConnection(tempConfigDatabase)
-            connection.connect()
             const sqlCreation = 'CREATE DATABASE IF NOT EXISTS diary'
-            connection.query(sqlCreation, [], function (err, result) {
-                if (err){
-                    console.log('- 1. fail : create db fails, \nwith err info: \n' + err.message)
-                    res.send(new ResponseError(err, err.message))
-                } else {
+            utility.knex.raw(sqlCreation)
+                .then(res => {
                     console.log('- 1. success: create db diary')
                     createTables()
                         .then(msg => {
@@ -46,18 +39,152 @@ router.get('/', (req, res, next) => {
                         .catch(msg => {
                             res.send(msg)
                         })
-                }
-            })
-            connection.end()
+                })
+                .catch(err => {
+                    console.log('- 1. fail : create db fails, \nwith err info: \n' + err.message)
+                    res.send(new ResponseError(err, err.message))
+                });
         } else {
             // 如果已经初始化过了
             res.send('该数据库已被初始化过，如果想重新初始化，请先删除项目中 <b>DATABASE_LOCK</b> 文件')
         }
     }))
-
-
 })
 
+async function createTables2() {
+    const kenx = utility.knex;
+    try
+    {
+        await knex.schema.dropTableIfExist('diary_category');
+        await knex.schema.createTable('diary_category', function (table) {
+            table.tinyint('sort_id').defaultTo(null);
+            table.string('name_en', 50).notNull().comment('类别英文名').primary();
+            table.string('name', 50).notNull().comment('类别名');
+            table.smallint('count').notNull().comment("类别日记数量");
+            table.string('color',10).notNull().defaultTo('#cccccc').comment('类别颜色');
+            table.datetime('date_init').notNull();
+
+            table.engine('InnoDB');
+        });
+
+        await knex('diary_category').insert([
+            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 3,  name_en: 'bigevent',  name:'大事', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 3,  name_en: 'bigevent',  name:'大事', count:0, color:'#FF3B30', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 10, name_en: 'bill',      name:'账单', count:0, color:'#8bc34a', date_init:'2022-05-23 21:23:02'},
+            { sort_id: 8,  name_en: 'film',      name:'电影', count:0, color:'#FF2D70', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 7,  name_en: 'game',      name:'游戏', count:0, color:'#5AC8FA', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 1,  name_en: 'life',      name:'生活', count:0, color:'#FF9500', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 11, name_en: 'memo',      name:'备忘', count:0, color:'#BABABA', date_init:'2022-10-31 17:16:15'},
+            { sort_id: 12, name_en: 'play',      name:'剧本', count:0, color:'#00AAFF', date_init:'2022-12-29 08:44:21'},
+            { sort_id: 13, name_en: 'sentiment', name:'情感', count:0, color:'#00C975', date_init:'2023-01-16 15:21:12'},
+            { sort_id: 4,  name_en: 'sport',     name:'运动', count:0, color:'#FFCC00', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 2,  name_en: 'study',     name:'学习', count:0, color:'#4CD964', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 4,  name_en: 'todo',      name:'待办', count:0, color:'#24C5FF', date_init:'2023-12-12 10:17:35'},
+            { sort_id: 5,  name_en: 'week',      name:'周报', count:0, color:'#5856D6', date_init:'2022-03-23 21:23:02'},
+            { sort_id: 6,  name_en: 'work',      name:'工作', count:0, color:'#007AFF', date_init:'2022-03-23 21:23:02'},
+        ]);
+        await knex.schema.dropTableIfExists('users');
+        await knex.schema.createTable(`users`, function (table) {
+            table.increments('uid');
+            table.string('email', 50).notNull();
+            table.string('nickname',20).notNull().comment('昵称');
+            table.string('username',20).notNull().comment('用户名');
+            table.string('password',100).notNull().comment('密码');
+            table.datetime('register_time').notNull().comment('注册时间');
+            table.datetime('last_visit_time').notNull().comment('最后访问时间');
+            table.string('comment',255).nullable().defaultTo(null).comment('注释');
+            table.string('wx',255).nullable().defaultTo('').comment('微信二维码');
+            table.string('phone',20).nullable().defaultTo(null).comment('手机号');
+            table.string('homepage',100).nullable().defaultTo(null).comment('个人主页');
+            table.smallint('group_id').index().references('id').inTable('user_group').notNull().defaultTo(2).comment('用户组别ID');
+            table.smallint('count_diary').defaultTo(0).comment('数量 - 日记');
+            table.smallint('sync_count').defaultTo(0).comment('同步次数');
+            table.string('avatar',255).defaultTo(null).comment('avatar图片地址');
+            table.string('city',255).defaultTo(null).comment('城市');
+            table.string('geolocation', 255).defaultTo(null).comment('经纬度');
+            table.primary(['uid', 'email']);
+
+            table.engine('InnoDB');
+        });
+
+        await knex.schema.dropTableIfExists('file_manager');
+        await knex.schema.createTable(`file_manager`, function (table) {
+            table.primary().increments('id').comment("hash");
+            table.string('name_original').notNull().comment("原文件名");
+            table.string('path').comment('文件路径');
+            table.string('description').comment('描述');
+            table.datetime('date_create').notNull().comment('创建时间');
+            table.string('type').notNull().defaultTo('image').comment('image, file');
+            table.integer('uid').notNull().references('uid').inTable('users').comment('uid');
+            table.integer('size').notNull().comment('file size');
+
+            table.engine('InnoDB');
+        });
+
+        await knex.schema.dropTableIfExists('user_group');
+        await knex.schema.createTable(`user_group`, function (table) {
+            table.primary().increments('id').comment("group ID");
+            table.string('name').notNull().comment("group name");
+            table.string('description');
+
+            table.engine('InnoDB');
+        });
+
+        const groups = [
+            {id:1, name:'admin', 'description': '管理员'},
+            {id:2, name:'user', 'description': '普通成员'},
+        ];
+
+        await knex('user_group').insert(groups);
+
+
+        await knex.schema.dropTableIfExists('invitations');
+        await knex.schema.createTable(`invitations`, function (table) {
+            table.primary().increments('id').comment("ID");
+            table.datetime('date_create').notNull().comment('创建时间');
+            table.datetime('date_register').notNull().comment('注册时间');
+            table.integer('binding_uid').index().references('uid').inTable('users').onDelete('restrict').onUpdate('restrict').comment("group name");
+
+            table.engine('InnoDB');
+        });
+
+
+        await knex.schema.dropTableIfExists('diaries');
+        await knex.schema.createTable(`diaries`, function (table) {
+            table.primary().increments('id').comment("ID");
+            table.datetime('date').notNull().comment('日记日期');
+            table.string('title').notNull().comment('标题');
+            table.text('content','longtext').notNull().comment('内容');
+            table.smallint('temperature').defaultTo(-273).comment('室内温度');
+            table.smallint('temperature_outside').defaultTo(-273).comment('室外温度');
+            table.enu('weather', ['sunny','cloudy','overcast','sprinkle','rain','thunderstorm','fog','snow','tornado','smog','sandstorm'], {use_native:true, enumName:'weather'})
+                .defaultTo('sunny').comment('天气');
+            table.string('category', 30).index().defaultTo('life').notNull().references('name_en').inTable('diary_category').onDelete('restrict').onUpdate('restrict').comment('类别');
+            table.datetime('date_create').notNull().comment('创建日期');
+            table.datetime('date_modify').notNull().comment('编辑日期');
+            table.integer('uid').notNull().comment('用户ID');
+            table.smallint('is_public',1).notNull().defaultTo(0).comment('是否共享');
+            table.smallint('is_markdown',1).notNull().defaultTo(0).comment('是否为markdown');
+
+            table.engine('InnoDB');
+        });
+    }
+    catch(err)
+    {
+        console.log('-- 2. fail: create table diaries, users')
+        throw '失败：新建 tables: users, diaries，\ninfo: \n' + err.message
+    }
+    console.log('-- 2. success: create table diaries, users')
+    return '成功：新建 tables: users, diaries'
+}
+
+/*
 function createTables(){
     return new Promise((resolve, reject) => {
         let connection = mysql.createConnection(configDatabase)
@@ -351,5 +478,6 @@ SET FOREIGN_KEY_CHECKS = 1;
         connection.end()
     })
 }
+*/
 
 module.exports = router

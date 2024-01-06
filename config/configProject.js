@@ -1,8 +1,33 @@
-module.exports = {
-    invitation: '----', // 万能注册邀请码，用这个不需要使用系统生成的邀请码
-    adminCount: 'kylebing@163.com', // 管理员账户，该用户可以在统计页面中查看所有用户统计数据
+let fs = require('node:fs');
+let process = require('node:process');
 
-    // 七牛云密钥
-    qiniuAccessKey: '---',
-    qiniuSecretKey: '---',
+const configName = 'config/configProject';
+
+let configFile;
+switch(process.env.NODE_ENVIRONMENT)
+{
+    case 'debug':
+        configFile = `${configName}.debug.json`;
+        break;
+    case 'production':
+    default:
+        configFile = `${configName}.production.json`;
+        break;
 }
+
+if(!fs.existsSync(configFile))
+{
+    configFile = `${configName}.json`;
+}
+
+if(!fs.existsSync(configFile))
+{
+    console.log('no config file for project');
+    process.exit(1);
+}
+
+let configData = fs.readFileSync(configFile, 'utf8');
+
+config = JSON.parse(configData);
+
+module.exports = config;

@@ -8,22 +8,20 @@ const ResponseError = require('../../response/ResponseError')
 const TABLE_NAME = 'diary_category' // 表名
 const DATA_NAME = '日记类别'          // 操作的数据名
 
-router.get('/list', (req, res, next) => {
+router.get('/list', async (req, res, next) => {
     // query.name_en
-    let sqlArray = []
-    sqlArray.push(` select * from ${TABLE_NAME} order by sort_id asc`)
-    utility
-        .getDataFromDB( 'diary', sqlArray)
-        .then(data => {
-            if (data) { // 没有记录时会返回  undefined
-                res.send(new ResponseSuccess(data))
-            } else {
-                res.send(new ResponseError('', `${DATA_NAME}查询错误`))
-            }
-        })
-        .catch(err => {
-            res.send(new ResponseError(err, err.message))
-        })
+    try
+    {
+        const data = await utility.knex(TABLE_NAME).select().orderBy('sort_id', 'asc')
+        if (data) { // 没有记录时会返回  undefined
+            res.send(new ResponseSuccess(data))
+        } else {
+            res.send(new ResponseError('', `${DATA_NAME}查询错误`))
+        }
+    }
+    catch(err) {
+        res.send(new ResponseError(err, err.message))
+    }
 })
 router.post('/add', (req, res, next) => {
     checkCategoryExist(req.body.name_en)
@@ -37,21 +35,10 @@ router.post('/add', (req, res, next) => {
                     .then(userInfo => {
                         if (userInfo.email === configProject.adminCount ){
                             let timeNow = utility.dateFormatter(new Date())
-                            // query.name_en
-                            let sqlArray = []
-                            sqlArray.push(`
-                                insert into ${TABLE_NAME}(name, name_en, color, sort_id, date_init) 
-                                values('${req.body.name}', '${req.body.name_en}', '${req.body.color}', '${req.body.sort_id}', '${timeNow}')`
-                            )
-                            utility
-                                .getDataFromDB( 'diary', sqlArray)
-                                .then(data => {
-                                    if (data) { // 没有记录时会返回  undefined
-                                        utility.updateUserLastLoginTime(userInfo.uid)
-                                        res.send(new ResponseSuccess({id: data.insertId}, '添加成功')) // 添加成功之后，返回添加后的日记 id
-                                    } else {
-                                        res.send(new ResponseError('', `${DATA_NAME}查询错误`))
-                                    }
+                            utility.knex(TABLE_NAME).insert({name:req.body.name, name_en: req.body.name_en, color: req.body.color, sort_id: req.body.sort_id, date_init: timeNow})
+                                .then(id => {
+                                    utility.updateUserLastLoginTime(userInfo.uid)
+                                    res.send(new ResponseSuccess({id: id}, '添加成功')) // 添加成功之后，返回添加后的日记 id
                                 })
                                 .catch(err => {
                                     res.send(new ResponseError(err, `${DATA_NAME}添加失败`))
@@ -64,7 +51,6 @@ router.post('/add', (req, res, next) => {
                     .catch(errInfo => {
                         res.send(new ResponseError('', errInfo))
                     })
-
             }
         })
 
@@ -75,22 +61,12 @@ router.put('/modify', (req, res, next) => {
         .then(userInfo => {
             if (userInfo.email === configProject.adminCount ){
                 let timeNow = utility.dateFormatter(new Date())
-                // query.name_en
-                let sqlArray = []
-                sqlArray.push(`
-                    update ${TABLE_NAME} set 
-                    name = '${req.body.name}',
-                    count = '${req.body.count}',
-                    color = '${req.body.color}',
-                    sort_id = ${req.body.sort_id}
-                    where name_en = '${req.body.name_en}'
-                    `)
-                utility
-                    .getDataFromDB( 'diary', sqlArray)
-                    .then(data => {
-                        if (data) { // 没有记录时会返回  undefined
+                utility.knex(TABLE_NAME).update({name:req.body.name, count: req.body.count, color: req.body.color, sort_id: req.body.sort_id }).where('name_en', req.body_name_en).returning('id')
+                    .then(ids => {
+                        // ids should be an array of {id:modified_id}
+                        if (ids?.length > 0) { // 没有记录时会返回  undefined
                             utility.updateUserLastLoginTime(userInfo.uid)
-                            res.send(new ResponseSuccess({id: data.insertId}, '修改成功')) // 添加成功之后，返回添加后的日记类别 id
+                            res.send(new ResponseSuccess(ids[0], '修改成功')) // 添加成功之后，返回添加后的日记类别 id
                         } else {
                             res.send(new ResponseError('', `${DATA_NAME}操作错误`))
                         }
@@ -112,18 +88,11 @@ router.delete('/delete', (req, res, next) => {
         .verifyAuthorization(req)
         .then(userInfo => {
             if (userInfo.email === configProject.adminCount ){
-                // query.name_en
-                let sqlArray = []
-                sqlArray.push(`
-                    delete from ${TABLE_NAME} 
-                               where name_en = '${req.body.name_en}'
-                    `)
-                utility
-                    .getDataFromDB( 'diary', sqlArray)
-                    .then(data => {
-                        if (data) { // 没有记录时会返回  undefined
+                utility.knex(TABLE_NAME).del().where('name_en', req.body.name_en).returning('id')
+                    .then(ids => {
+                        if (ids?.length > 0) { // 没有记录时会返回  undefined
                             utility.updateUserLastLoginTime(userInfo.uid)
-                            res.send(new ResponseSuccess({id: data.insertId}, '删除成功')) // 添加成功之后，返回添加后的日记类别 id
+                            res.send(new ResponseSuccess(ids[0], '删除成功')) // 添加成功之后，返回添加后的日记类别 id
                         } else {
                             res.send(new ResponseError('', '日记类别删除失败'))
                         }
@@ -143,9 +112,7 @@ router.delete('/delete', (req, res, next) => {
 
 // 检查类别是否存在
 function checkCategoryExist(categoryName){
-    let sqlArray = []
-    sqlArray.push(`select * from ${TABLE_NAME} where name_en='${categoryName}'`)
-    return utility.getDataFromDB( 'diary', sqlArray)
+    return utility.knex(TABLE_NAME).where('name_en', categoryName).limit(1);
 }
 
 

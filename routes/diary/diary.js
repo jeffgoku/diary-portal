@@ -10,18 +10,23 @@ router.get('/list', (req, res, next) => {
         .then(userInfo => {
             let startPoint = (req.query.pageNo - 1) * req.query.pageSize // 日记起点
 
-            let sqlArray = []
-            sqlArray.push(`SELECT *
-                  from diaries 
-                  where uid='${userInfo.uid}'`)
+            let query = utility.knex('diaries').select().where('uid', userInfo.uid)
 
             // keywords
             if (req.query.keywords){
                 let keywords = JSON.parse(req.query.keywords).map(item => utility.unicodeEncode(item))
-                console.log(keywords)
                 if (keywords.length > 0){
-                    let keywordStrArray = keywords.map(keyword => `( title like '%${keyword}%' ESCAPE '/'  or content like '%${keyword}%' ESCAPE '/')` )
-                    sqlArray.push(' and ' + keywordStrArray.join(' and ')) // 在每个 categoryString 中间添加 'or'
+                    for(const keyword of keywords)
+                    {
+                        if(keyword.length == 0)
+                        {
+                            continue;
+                        }
+                        //console.log(`keyword : "${keyword}", length : ${keyword.length}, charAt : ${keyword.charCodeAt(0)}`)
+                        query = query.andWhere(builder => {
+                            builder.whereLike('title', keyword).orWhereLike('content', keyword)
+                        });
+                    }
                 }
             }
 
@@ -29,45 +34,48 @@ router.get('/list', (req, res, next) => {
             if (req.query.categories){
                 let categories = JSON.parse(req.query.categories)
                 if (categories.length > 0) {
-                    let categoryStrArray = categories.map(category => `category='${category}'`)
-                    let tempString = categoryStrArray.join(' or ')
-                    sqlArray.push(` and (${tempString})`) // 在每个 categoryString 中间添加 'or'
+                    query = query.andWhere(builder => {
+                        builder.where('category', categories[0])
+                        for(let i = 1; i<categories.length; ++i)
+                        {
+                            builder.orWhere('category', categories[i])
+                        }
+                    })
                 }
             }
 
             // share
             if (req.query.filterShared === '1'){
-                sqlArray.push(' and is_public = 1')
+                query = query.andWhere('is_public', 1)
             }
 
             // date range
             if (req.query.dateFilter){
                 let year = req.query.dateFilter.substring(0,4)
                 let month = req.query.dateFilter.substring(4,6)
-                sqlArray.push(` and  YEAR(date)='${year}' AND MONTH(date)='${month}'`)
+                query = query.andWhereRaw(`YEAR(date)='${year}' AND MONTH(date)='${month}`)
             }
 
-            sqlArray.push(` order by date desc
-                  limit ${startPoint}, ${req.query.pageSize}`)
+            query.orderBy('date', 'desc').offset(startPoint).limit(req.query.pageSize)
 
-            utility
-                .getDataFromDB( 'diary', sqlArray)
-                .then(data => {
-                    utility.updateUserLastLoginTime(userInfo.uid)
-                    data.forEach(diary => {
-                        // decode unicode
-                        diary.title = utility.unicodeDecode(diary.title)
-                        diary.content = utility.unicodeDecode(diary.content)
-                        // 处理账单数据
-                        if (diary.category === 'bill'){
-                            diary.billData = utility.processBillOfDay(diary, [])
-                        }
-                    })
-                    res.send(new ResponseSuccess(data, '请求成功'))
+            //console.log(query.toString())
+
+            query.then(data => {
+                utility.updateUserLastLoginTime(userInfo.uid)
+                data.forEach(diary => {
+                    // decode unicode
+                    diary.title = utility.unicodeDecode(diary.title)
+                    diary.content = utility.unicodeDecode(diary.content)
+                    // 处理账单数据
+                    if (diary.category === 'bill'){
+                        diary.billData = utility.processBillOfDay(diary, [])
+                    }
                 })
-                .catch(err => {
-                    res.send(new ResponseError(err, err.message))
-                })
+                res.send(new ResponseSuccess(data, '请求成功'))
+            })
+            .catch(err => {
+                res.send(new ResponseError(err, err.message))
+            })
         })
         .catch(errInfo => {
             res.send(new ResponseError('', errInfo))
@@ -78,12 +86,7 @@ router.get('/export', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let sqlArray = []
-            sqlArray.push(`SELECT *
-                  from diaries 
-                  where uid='${userInfo.uid}'`)
-            utility
-                .getDataFromDB( 'diary', sqlArray)
+            utility.knex('diaries').where('uid',userInfo.uid)
                 .then(data => {
                     utility.updateUserLastLoginTime(userInfo.uid)
                     data.forEach(diary => {
@@ -106,79 +109,34 @@ router.get('/export', (req, res, next) => {
         })
 })
 
-
-router.get('/export', (req, res, next) => {
-    utility
-        .verifyAuthorization(req)
-        .then(userInfo => {
-            let sqlArray = []
-            sqlArray.push(`SELECT *
-                  from diaries 
-                  where uid='${userInfo.uid}'`)
-            utility
-                .getDataFromDB( 'diary', sqlArray)
-                .then(data => {
-                    utility.updateUserLastLoginTime(userInfo.uid)
-                    data.forEach(diary => {
-                        // decode unicode
-                        diary.title = utility.unicodeDecode(diary.title)
-                        diary.content = utility.unicodeDecode(diary.content)
-                        // 处理账单数据
-                        if (diary.category === 'bill'){
-                            diary.billData = utility.processBillOfDay(diary, [])
-                        }
-                    })
-                    res.send(new ResponseSuccess(data, '请求成功'))
-                })
-                .catch(err => {
-                    res.send(new ResponseError(err, err.message))
-                })
-        })
-        .catch(verified => {
-            res.send(new ResponseError(verified, '无权查看日记列表：用户信息错误'))
-        })
-})
 
 
 router.get('/temperature', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let sqlArray = []
-            sqlArray.push(`SELECT
-                               date,
-                               temperature,
-                               temperature_outside
-                           FROM
-                               diaries
-                           WHERE
-                               uid='${userInfo.uid}'
-                             AND category = 'life'
-
-                           ORDER BY
-                               date desc
-                               LIMIT 100 `)
+            let query = utility.knex('diaries').select('date', 'temperature', 'temperature_outside')
+                .where('uid', userInfo.uid).andWhere('category','life')
+                .orderBy('date', 'desc').limit(100)
 
             // date range
             if (req.query.dateFilter){
                 let year = req.query.dateFilter.substring(0,4)
                 let month = req.query.dateFilter.substring(4,6)
-                sqlArray.push(` and  YEAR(date)='${year}' AND MONTH(date)='${month}'`)
+                query = query.andWhereRaw(`YEAR(date)='${year}' AND MONTH(date)='${month}`)
             }
-            utility
-                .getDataFromDB( 'diary', sqlArray)
-                .then(data => {
-                    utility.updateUserLastLoginTime(userInfo.uid)
-                    data.forEach(diary => {
-                        // decode unicode
-                        diary.title = utility.unicodeDecode(diary.title)
-                        diary.content = utility.unicodeDecode(diary.content)
-                    })
-                    res.send(new ResponseSuccess(data, '请求成功'))
+            query.then(data => {
+                utility.updateUserLastLoginTime(userInfo.uid)
+                data.forEach(diary => {
+                    // decode unicode
+                    diary.title = utility.unicodeDecode(diary.title)
+                    diary.content = utility.unicodeDecode(diary.content)
                 })
-                .catch(err => {
-                    res.send(new ResponseError(err, err.message))
-                })
+                res.send(new ResponseSuccess(data, '请求成功'))
+            })
+            .catch(err => {
+                res.send(new ResponseError(err, err.message))
+            })
         })
         .catch(errInfo => {
             res.send(new ResponseError('', errInfo))
@@ -186,12 +144,10 @@ router.get('/temperature', (req, res, next) => {
 })
 
 router.get('/detail', (req, res, next) => {
-    let sqlArray = []
-    sqlArray.push(`select * from diaries where id = ${req.query.diaryId}`)
     // 1. 先查询出日记结果
-    utility
-        .getDataFromDB( 'diary', sqlArray, true)
+    utility.knex('diaries').select().where('id', req.query.diaryId)
         .then(dataDiary => {
+            dataDiary = dataDiary[0]
             // decode unicode
             dataDiary.title = utility.unicodeDecode(dataDiary.title)
             dataDiary.content = utility.unicodeDecode(dataDiary.content)
@@ -200,9 +156,9 @@ router.get('/detail', (req, res, next) => {
             if (dataDiary.is_public === 1){
                 // 2.1 如果是，直接返回结果，不需要判断任何东西
                 let diaryOwnerId = dataDiary.uid
-                utility
-                    .getDataFromDB('diary', [`select * from users where uid = '${diaryOwnerId}'`], true)
+                utility.knex('users').select().where('uid', diaryOwnerId)
                     .then(userData => {
+                        userData = userData[0]
                         dataDiary.nickname = userData.nickname
                         dataDiary.username = userData.username
                         res.send(new ResponseSuccess(dataDiary))
@@ -218,6 +174,7 @@ router.get('/detail', (req, res, next) => {
                             utility.updateUserLastLoginTime(userInfo.uid)
                             res.send(new ResponseSuccess(dataDiary))
                         } else {
+                            // console.log(`uid = ${userInfo.uid}, diary uid = ${dataDiary.uid}`)
                             res.send(new ResponseError('','无权查看该日记：请求用户 ID 与日记归属不匹配'))
                         }
                     })
@@ -236,23 +193,19 @@ router.post('/add', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let sqlArray = []
             let parsedTitle = utility.unicodeEncode(req.body.title) // !
             parsedTitle = parsedTitle.replaceAll(`'`, `''`)
             let parsedContent = utility.unicodeEncode(req.body.content) || ''
             parsedContent = parsedContent.replaceAll(`'`, `''`)
             let timeNow = utility.dateFormatter(new Date())
-            sqlArray.push(`
-                    INSERT into diaries(title, content, category, weather, temperature, temperature_outside, date_create, date_modify, date, uid, is_public, is_markdown )
-                    VALUES(
-                        '${parsedTitle}','${parsedContent}','${req.body.category}','${req.body.weather}','${req.body.temperature || 18}',
-                        '${req.body.temperatureOutside || 18}', '${timeNow}','${timeNow}','${req.body.date}','${userInfo.uid}','${req.body.isPublic || 0}', '${req.body.isMarkdown || 0}')`
-            )
-            utility
-                .getDataFromDB( 'diary', sqlArray)
-                .then(data => {
+
+            utility.knex('diaries').insert({title:parsedTitle, content: parsedContent, category: req.body.category, weather: req.body.weather, 
+                    temperature: req.body.temperature || 18, temperature_outside: req.body.temperatureOutside || 18,
+                    date_create: timeNow, date_modify: timeNow, date: req.body.date, uid: userInfo.uid, is_public: req.body.isPublic||0, is_markdown: req.body.isMarkdown || 0})
+                .then(id => {
+                    utility.knex('users').increment('count_diary', 1).where('uid', userInfo.uid).then(() => {})
                     utility.updateUserLastLoginTime(userInfo.uid)
-                    res.send(new ResponseSuccess({id: data.insertId}, '添加成功')) // 添加成功之后，返回添加后的日记 id
+                    res.send(new ResponseSuccess({id: id}, '添加成功')) // 添加成功之后，返回添加后的日记 id
                 })
                 .catch(err => {
                     res.send(new ResponseError(err, '添加失败'))
@@ -274,26 +227,12 @@ router.put('/modify', (req, res, next) => {
             let parsedContent = utility.unicodeEncode(req.body.content) || ''
             parsedContent = parsedContent.replaceAll(`'`, `''`)
             let timeNow = utility.dateFormatter(new Date())
-            let sqlArray = [`
-                        update diaries
-                            set
-                                diaries.date_modify='${timeNow}',
-                                diaries.date='${req.body.date}',
-                                diaries.category='${req.body.category}',
-                                diaries.title='${parsedTitle}',
-                                diaries.content='${parsedContent}',
-                                diaries.weather='${req.body.weather}',
-                                diaries.temperature='${req.body.temperature}',
-                                diaries.temperature_outside='${req.body.temperatureOutside}',
-                                diaries.is_public='${req.body.isPublic}',
-                                diaries.is_markdown='${req.body.isMarkdown}'
-                            WHERE id='${req.body.id}' and uid='${userInfo.uid}'
-                    `]
-            utility
-                .getDataFromDB( 'diary', sqlArray, true)
-                .then(data => {
+            utility.knex('diaries').update({date_modify: timeNow, date: req.body.date, category: req.body.category, title: parsedTitle, content: parsedContent, weather: req.body.weather,
+                    temperature: req.body.temperature, temperature_outside: req.body.temperatureOutside, is_public: req.body.isPublic, is_markdown: req.body.isMarkdown})
+                .where('id', req.body.id).andWhere('uid', userInfo.uid)
+                .then(count => {
                     utility.updateUserLastLoginTime(userInfo.uid)
-                    res.send(new ResponseSuccess(data, '修改成功'))
+                    res.send(new ResponseSuccess('', '修改成功'))
                 })
                 .catch(err => {
                     res.send(new ResponseError(err, '修改失败'))
@@ -309,16 +248,10 @@ router.delete('/delete', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let sqlArray = []
-            sqlArray.push(`
-                        DELETE from diaries
-                        WHERE id='${req.body.diaryId}'
-                        and uid='${userInfo.uid}'
-                    `)
-            utility
-                .getDataFromDB( 'diary', sqlArray)
-                .then(data => {
-                    if (data.affectedRows > 0) {
+            utility.knex('diaries').del().where('id', req.body.diaryId).andWhere('uid', userInfo.uid)
+                .then(affectedRows => {
+                    if (affectedRows > 0) {
+                        utility.knex('users').decrement('count_diary', 1).then(() => {})
                         utility.updateUserLastLoginTime(userInfo.uid)
                         res.send(new ResponseSuccess('', '删除成功'))
                     } else {
@@ -342,13 +275,10 @@ router.post('/clear', (req, res, next) => {
                 res.send(new ResponseError('', '演示帐户不允许执行此操作'))
                 return
             }
-            let sqlArray = []
-            sqlArray.push(`delete from diaries where uid=${userInfo.uid}`)
-            utility
-                .getDataFromDB( 'diary', sqlArray)
-                .then(data => {
+            utility.knex('diaries').del().where('uid', userInfo.uid)
+                .then(affectedRows => {
                     utility.updateUserLastLoginTime(userInfo.uid)
-                    res.send(new ResponseSuccess(data, `清空成功：${data.affectedRows} 条日记`))
+                    res.send(new ResponseSuccess({affectedRows}, `清空成功：${affectedRows} 条日记`))
                 })
                 .catch(err => {
                     res.send(new ResponseError(err, err.message))

@@ -15,9 +15,9 @@ router.post('/register', (req, res, next) => {
     if (req.body.invitationCode === configProject.invitation){ // 万能全局邀请码
         registerUser(req, res)
     } else {
-        utility
-            .getDataFromDB('diary', [`select * from invitations where id = '${req.body.invitationCode}'`], true)
+        utility.knex('invitations').select().where('id', req.body.invitationCode)
             .then(result => {
+                result = result[0];
                 if (result){
                     if (result.binding_uid){
                         res.send(new ResponseError('', '邀请码已被使用'))
@@ -41,34 +41,15 @@ function registerUser(req, res){
             if (dataEmailExistArray.length > 0){
                 return res.send(new ResponseError('', '邮箱或用户名已被注册'))
             } else {
-                let sqlArray = []
                 let timeNow = utility.dateFormatter(new Date())
                 // 明文密码通过 bcrypt 加密，对比密码也是通过  bcrypt
                 bcrypt.hash(req.body.password, 10, (err, encryptPassword) => {
-                    sqlArray.push(
-                        // 注册的用户默认为普通用户
-                        `insert into users(email, nickname, username, password, register_time, last_visit_time, comment, 
-                                                wx, phone, homepage, gaode, group_id)
-                                    VALUES (
-                                    '${req.body.email}', 
-                                    '${req.body.nickname || ''}', 
-                                    '${req.body.username || ''}', 
-                                    '${encryptPassword}', 
-                                    '${timeNow}',
-                                    '${timeNow}',
-                                    '${req.body.comment || ''}', 
-                                    '${req.body.wx || ''}', 
-                                    '${req.body.phone || ''}', 
-                                    '${req.body.homepage || ''}', 
-                                    '${req.body.gaode || ''}', 
-                                    '2'
-                                    )`
-                    )
-                    utility
-                        .getDataFromDB( 'diary', sqlArray)
-                        .then(data => {
-                            let lastInsertedUid = data.insertId
-                            utility.getDataFromDB('diary', [`update invitations set binding_uid = ${lastInsertedUid}, date_register = '${timeNow}' where id = '${req.body.invitationCode}'`])
+                    // 注册的用户默认为普通用户
+                    utility.knex('users').insert({email:req.body.email, nickname:req.body.nickname||'', username: req.body.username ||'', password: encryptPassword, register_time: timeNow
+                            ,last_visit_time: timeNow, comment: req.body.comment || '', wx: req.body.wx||''
+                            ,phone: req.body.phone||'', homepage: req.body.homepage||'', gaode: req.body.gaode||'',group_id:2})
+                        .then(uid=> {
+                            utility.knex('invitations').update({binding_uid: uid, date_register: timeNow}).where('id', req.body.invitationCode)
                                 .then(resInvitation => {
                                     res.send(new ResponseSuccess('', '注册成功'))
                                 })
@@ -91,75 +72,14 @@ function registerUser(req, res){
 
 // 检查用户名或邮箱是否存在
 function checkEmailOrUserNameExist(email, username){
-    let sqlArray = []
-    sqlArray.push(`select * from users where email='${email}' or username ='${username}'`)
-    return utility.getDataFromDB( 'diary', sqlArray)
+    return utility.knex('users').select().where('email', email).orWhere('username', username).limit(1)
 }
 
 router.post('/list', (req, res, next) => {
-    utility
-        .verifyAuthorization(req)
-        .then(userInfo => {
-            let promisesAll = []
-
-            if (userInfo.group_id === 1){
-                // admin user
-                let pointStart = (Number(req.body.pageNo) - 1) * Number(req.body.pageSize)
-                promisesAll.push(utility.getDataFromDB(
-                    'diary',
-                    [`SELECT * from users limit ${pointStart} , ${req.body.pageSize}`])
-                )
-                promisesAll.push(utility.getDataFromDB(
-                    'diary',
-                    [`select count(*) as sum from users`], true)
-                )
-            } else {
-                // normal user
-                let pointStart = (Number(req.body.pageNo) - 1) * Number(req.body.pageSize)
-                promisesAll.push(utility.getDataFromDB(
-                    'diary',
-                    [`SELECT * from users where uid = '${userInfo.uid}' limit ${pointStart} , ${req.body.pageSize}`])
-                )
-                promisesAll.push(utility.getDataFromDB(
-                    'diary',
-                    [`select count(*) as sum from users where uid = '${userInfo.uid}' `], true)
-                )
-            }
-
-
-            Promise
-                .all(promisesAll)
-                .then(([userList, dataSum]) => {
-                    utility.updateUserLastLoginTime(userInfo.uid)
-                    userList.forEach(diary => {
-                        // decode unicode
-                        diary.title = utility.unicodeDecode(diary.title)
-                        diary.content = utility.unicodeDecode(diary.content)
-                    })
-                    res.send(new ResponseSuccess({
-                        list: userList,
-                        pager: {
-                            pageSize: Number(req.body.pageSize),
-                            pageNo: Number(req.body.pageNo),
-                            total: dataSum.sum
-                        }
-                    }, '请求成功'))
-
-                })
-                .catch(err => {
-                    res.send(new ResponseError(err, err.message))
-                })
-        })
-        .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
-        })
 })
 
 router.get('/detail', (req, res, next) => {
-    let sqlArray = []
-    sqlArray.push(`select * from qrs where hash = '${req.query.hash}'`)
-    utility
-        .getDataFromDB( 'diary', sqlArray, true)
+    utility.knex('qrs').select().where('hash', req.query.hash)
         .then(data => {
             // decode unicode
             data.message = utility.unicodeDecode(data.message)
@@ -210,10 +130,7 @@ router.get('/detail', (req, res, next) => {
 
 
 router.get('/avatar', (req, res, next) => {
-    let sqlArray = []
-    sqlArray.push(`select avatar from users where email = '${req.query.email}'`)
-    utility
-        .getDataFromDB( 'diary', sqlArray, true)
+    utility.knex('users').select('avatar').where('email', req.query.email)
         .then(data => {
             res.send(new ResponseSuccess(data))
         })
@@ -224,62 +141,13 @@ router.get('/avatar', (req, res, next) => {
 
 
 router.post('/add', (req, res, next) => {
-    checkEmailOrUserNameExist(req.body.email, req.body.username)
-        .then(dataEmailExistArray => {
-            // email 记录是否已经存在
-            if (dataEmailExistArray.length > 0){
-                return res.send(new ResponseError('', '邮箱或用户名已被注册'))
-            } else {
-                let sqlArray = []
-                let timeNow = utility.dateFormatter(new Date())
-                // 明文密码通过 bcrypt 加密，对比密码也是通过  bcrypt
-                bcrypt.hash(req.body.password, 10, (err, encryptPassword) => {
-                    sqlArray.push(
-                        `insert into users(email, nickname, username, password, register_time, last_visit_time, comment, 
-                                                wx, phone, homepage, gaode, group_id)
-                                    VALUES (
-                                    '${req.body.email}', 
-                                    '${req.body.nickname}', 
-                                    '${req.body.username}', 
-                                    '${encryptPassword}', 
-                                    '${timeNow}',
-                                    '${timeNow}',
-                                    '${req.body.comment || ''}', 
-                                    '${req.body.wx}', 
-                                    '${req.body.phone}', 
-                                    '${req.body.homepage}', 
-                                    '${req.body.gaode}', 
-                                    '${req.body.group_id}'
-                                    )`
-                    )
-                    utility
-                        .getDataFromDB( 'diary', sqlArray)
-                        .then(data => {
-                            res.send(new ResponseSuccess('', '用户添加成功'))
-                        })
-                        .catch(err => {
-                            res.send(new ResponseError(err, '用户添加失败'))
-                        })
-                })
-
-            }
-        })
-        .catch(errEmailExist => {
-            console.log(errEmailExist)
-            res.send(new ResponseError(errEmailExist, '查询出错'))
-        })
 })
-
-// 检查用户名或邮箱是否存在
-function checkHashExist(username, email){
-    let sqlArray = []
-    sqlArray.push(`select * from users where username ='${username.toLowerCase()}' or email = '${email}'`)
-    return utility.getDataFromDB( 'diary', sqlArray)
-}
 
 
 // 设置用户资料：昵称，avatar，手机号
 router.put('/set-profile', (req, res, next) => {
+    res.send(new ResponseError('not implement','not implement'))
+    /*
     // 1. 验证用户信息是否正确
     utility
         .verifyAuthorization(req)
@@ -312,6 +180,7 @@ router.put('/set-profile', (req, res, next) => {
         .catch(err => {
             res.send(new ResponseError(err, '无权操作'))
         })
+        */
 })
 
 
@@ -337,24 +206,8 @@ router.put('/modify', (req, res, next) => {
 })
 
 function operateUserInfo(req, res, userInfo){
-    let sqlArray = []
-    sqlArray.push(`
-                update users
-                    set
-                            users.email = '${req.body.email}', 
-                            users.nickname = '${req.body.nickname}', 
-                            users.username = '${req.body.username}', 
-                            users.comment = '${req.body.comment || ''}', 
-                            users.wx = '${req.body.wx}', 
-                            users.phone = '${req.body.phone}', 
-                            users.homepage = '${req.body.homepage}', 
-                            users.gaode = '${req.body.gaode}', 
-                            users.group_id = '${req.body.group_id}'
-                    WHERE uid='${req.body.uid}'
-            `)
-
-    utility
-        .getDataFromDB( 'diary', sqlArray, true)
+    utility.knex('users').update({email:req.body.email, nickname: req.body.nickname, username: req.body.username, comment: req.body.comment||'',
+            wx:req.body.wx||'', phone: req.body.phone||'', homepage:req.body.homepage||'', gaode:req.body.gaode||'', group_id:req.body.group_id}).where('uid', req.body.uid)
         .then(data => {
             utility.updateUserLastLoginTime(userInfo.uid)
             res.send(new ResponseSuccess(data, '修改成功'))
@@ -370,15 +223,9 @@ router.delete('/delete', (req, res, next) => {
         .verifyAuthorization(req)
         .then(userInfo => {
             if (userInfo.group_id === 1){
-                let sqlArray = []
-                sqlArray.push(`
-                        DELETE from users
-                        WHERE uid='${req.body.uid}'
-                    `)
-                utility
-                    .getDataFromDB( 'diary', sqlArray)
-                    .then(data => {
-                        if (data.affectedRows > 0) {
+                utility.knex('users').del().where('uid', req.body.uid)
+                    .then(affectedRows => {
+                        if (affectedRows > 0) {
                             utility.updateUserLastLoginTime(req.body.email)
                             res.send(new ResponseSuccess('', '删除成功'))
                         } else {
@@ -398,11 +245,8 @@ router.delete('/delete', (req, res, next) => {
 })
 
 router.post('/login', (req, res, next) => {
-    let sqlArray = []
-    sqlArray.push(`select * from users where email = '${req.body.email}'`)
 
-    utility
-        .getDataFromDB( 'diary', sqlArray, true)
+    utility.knex('users').select().where('email', req.body.email)
         .then(data => {
             if (data) {
                 bcrypt.compare(req.body.password, data.password, function(err, isPasswordMatch) {
@@ -438,9 +282,7 @@ router.put('/change-password', (req, res, next) => {
                 return
             }
             bcrypt.hash(req.body.password, 10, (err, encryptPasswordNew) => {
-                let changePasswordSqlArray = [`update users set password = '${encryptPasswordNew}' where email='${userInfo.email}'`]
-                utility
-                    .getDataFromDB( 'diary', changePasswordSqlArray)
+                utility.knex('users').update('password', encryptPasswordNew).where('email', userInfo.email)
                     .then(dataChangePassword => {
                         utility.updateUserLastLoginTime(userInfo.uid)
                         res.send(new ResponseSuccess('', '修改密码成功'))
@@ -466,50 +308,21 @@ router.delete('/destroy-account', (req, res, next) => {
                 res.send(new ResponseError('', '演示帐户不允许执行此操作'))
                 return
             }
-            let connection = utility.getMysqlConnection('diary')
-            connection.beginTransaction(transactionError => {
-                if (transactionError){
-                    connection.rollback(err => {
-                        res.send(new ResponseError('', 'beginTransaction: 事务执行失败，已回滚'))
-                    })
-                    connection.end()
-                } else {
-                    let sql = `
-                                delete from diaries where uid = ${userInfo.uid}; 
-                                delete from invitations where binding_uid = ${userInfo.uid}; 
-                                delete from map_pointer where uid = ${userInfo.uid}; 
-                                delete from map_route where uid = ${userInfo.uid}; 
-                                delete from map_route where uid = ${userInfo.uid}; 
-                                delete from qrs where uid = ${userInfo.uid}; 
-                                delete from users where uid = ${userInfo.uid}; 
-                                `
-                    connection.query(sql, [], (queryErr,result) => {
-                        if (queryErr){
-                            connection.rollback(err => {
-                                res.send(new ResponseError(queryErr, 'query: 事务执行失败，已回滚'))
-                            })
-                            // res.send(new ResponseError(err, '数据库请求错误'))
-                        } else {
-                            connection.commit(commitError => {
-                                if (commitError){
-                                    connection.rollback(err => {
-                                        res.send(new ResponseError(err, 'transaction.commit: 事务执行失败，已回滚'))
-                                    })
-                                } else {
-                                    res.send(new ResponseSuccess(result, '事务执行成功'))
-                                }
-                            })
-                        }
-                        connection.end()
-                    })
-                }
-
+            utility.knex.transaction(async trx => {
+                await trx.del().table('diaries').where('uid', userInfo.uid)
+                await trx.del().table('invitations').where('uid', userInfo.uid)
+                await trx.del().table('users').where('uid', userInfo.uid)
+            })
+            .then(() => {
+                res.send(new ResponseSuccess('', '事务执行成功'))
+            })
+            .catch(err => {
+                res.send(new ResponseError(err, 'transaction.commit: 事务执行失败，已回滚'))
             })
         })
         .catch(errInfo => {
             res.send(new ResponseError('null', errInfo))
         })
 })
-
 
 module.exports = router

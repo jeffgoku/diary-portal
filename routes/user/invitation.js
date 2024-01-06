@@ -12,14 +12,13 @@ router.get('/list', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let sqlArray = []
+            let query;
             if (userInfo.email === configProject.adminCount ) { //
-                sqlArray.push(`SELECT * from ${TABLE_NAME} where binding_uid is null order by date_create desc ;`)
+                query = utility.knex(TABLE_NAME).select().whereNull('binding_uid').orderBy('date_create', 'desc')
             } else {
-                sqlArray.push(`SELECT * from ${TABLE_NAME} where binding_uid is null and is_shared = 0 order by date_create desc  ;`)
+                query = utility.knex(TABLE_NAME).select().whereNull('binding_uid').andWhere('is_shared', 0).orderBy('date_create', 'desc')
             }
-            utility
-                .getDataFromDB( 'diary', sqlArray)
+            query
                 .then(data => {
                     utility.updateUserLastLoginTime(userInfo.uid)
                     res.send(new ResponseSuccess(data, '请求成功'))
@@ -31,9 +30,7 @@ router.get('/list', (req, res, next) => {
         .catch(verified => {
             let sqlArray = []
             // 获取未分享的可用邀请码
-            sqlArray.push(`SELECT * from ${TABLE_NAME} where binding_uid is null and is_shared = 0 order by date_create desc ;`)
-            utility
-                .getDataFromDB( 'diary', sqlArray)
+            utility.knex(TABLE_NAME).whereNull('binding_uid').andWhere('is_shared', 0).orderBy('date_create', 'desc')
                 .then(data => {
                     res.send(new ResponseSuccess(data, '请求成功'))
                 })
@@ -48,15 +45,9 @@ router.post('/generate', (req, res, next) => {
         .then(userInfo => {
             if (userInfo.email === configProject.adminCount){ // admin
                 let timeNow = utility.dateFormatter(new Date())
-                let sqlArray = []
                 crypto.randomBytes(12, (err, buffer) => {
                     let key = buffer.toString('base64')
-                    sqlArray.push(`
-                        insert into 
-                            ${TABLE_NAME}(date_create, id) 
-                            VALUES ('${timeNow}', '${key}')`)
-                    utility
-                        .getDataFromDB( 'diary', sqlArray)
+                    utility.knex(TABLE_NAME).insert({date_create: timeNow, id: key})
                         .then(data => {
                             res.send(new ResponseSuccess(key, '邀请码生成成功'))
                         })
@@ -78,11 +69,7 @@ router.post('/mark-shared', (req, res, next) => {
     utility.verifyAuthorization(req)
         .then(userInfo => {
             if (userInfo.email === configProject.adminCount){ // admin
-                let sqlArray = []
-                sqlArray.push(`
-                        update ${TABLE_NAME} set is_shared = 1 where id = '${req.body.id}' `)
-                utility
-                    .getDataFromDB( 'diary', sqlArray)
+                utility.knex(TABLE_NAME).update({'is_shared': 1}).where('id', req.body.id)
                     .then(data => {
                         res.send(new ResponseSuccess('', '邀请码标记成功'))
                     })
@@ -108,10 +95,7 @@ router.delete('/delete', (req, res, next) => {
         .verifyAuthorization(req)
         .then(userInfo => {
             if (userInfo.email === configProject.adminCount){
-                let sqlArray = []
-                sqlArray.push(` DELETE from ${TABLE_NAME} WHERE id='${req.query.id}' `)
-                utility
-                    .getDataFromDB( 'diary', sqlArray)
+                utility.knex(TABLE_NAME).del().where('id', req.query.id)
                     .then(data => {
                         if (data.affectedRows > 0) {
                             utility.updateUserLastLoginTime(req.body.email)

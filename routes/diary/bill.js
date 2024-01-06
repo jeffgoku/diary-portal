@@ -10,10 +10,7 @@ router.get('/', (req, res, next) => {
         .verifyAuthorization(req)
         .then(userInfo => {
             // let startPoint = (req.query.pageNo - 1) * req.query.pageSize // 日记起点
-            let sqlArray = []
-            sqlArray.push(`SELECT *from diaries where uid='${ruserInfo.uid}' and category = 'bill' order by date asc`)
-            utility
-                .getDataFromDB( 'diary', sqlArray)
+            utility.knex('diaries').select().where('uid', userInfo.uid).andWhere('category','bill').orderBy('date', 'asc')
                 .then(billDiaryList => {
                     utility.updateUserLastLoginTime(userInfo.uid)
                     let billResponse = []
@@ -42,80 +39,81 @@ router.get('/sorted', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let yearNow = new Date().getFullYear()
-            let sqlRequests = []
-            let sqlArray = []
-            req.query.years.split(',').forEach(year => {
-                for (let month = 1; month <= 12; month ++ ){
-                    sqlArray.push(`
-                        select *,
-                        date_format(date,'%Y%m') as month_id,
-                        date_format(date,'%m') as month
-                        from diaries 
-                        where year(date) = ${year}
-                        and month(date) = ${month}
-                        and category = 'bill'
-                        and uid = ${userInfo.uid}
-                        order by date asc;
-                    `)
-                }
-            })
+            utility.knex('diaries').select('*', utility.knex.raw(`date_format(date,'%Y%m') as month_id,date_format(date,'%m') as month`))
+                .whereIn(utility.knex.raw('year(date)'), req.query.years.split(','))
+                .andWhere('category','bill')
+                .andWhere('uid', userInfo.uid)
+                .orderBy('date', 'desc')
+                .then(days => {
+                    let daysData = []
+                    let monthSum = 0
+                    let monthSumIncome = 0
+                    let monthSumOutput = 0
+                    let food = {
+                        breakfast: 0, // 早餐
+                        launch: 0, // 午餐
+                        dinner: 0 // 晚饭
+                    }
+                    let responseData = [];
 
-            sqlRequests.push(utility.getDataFromDB( 'diary', sqlArray))
-            // 这里有个异步运算的弊端，所有结果返回之后，我需要重新给他们排序，因为他们的返回顺序是不定的。难搞哦
-            Promise.all(sqlRequests)
-                .then(yearDataArray => {
-                    let responseData = []
-                    let afterValues = yearDataArray[0].filter(item => item.length > 0) // 去年内容为 0 的年价数据
-                    afterValues.forEach(daysArray => {
+                    let curMonth = days[0].month_id;
 
-                        let daysData = []
-                        let monthSum = 0
-                        let monthSumIncome = 0
-                        let monthSumOutput = 0
-                        let food = {
-                            breakfast: 0, // 早餐
-                            launch: 0, // 午餐
-                            dinner: 0 // 晚饭
+                    // 用一次循环处理完所有需要在循环中处理的事：合总额、map DayArray
+                    let keywords = req.query.keyword ? req.query.keyword.split(' ') : []
+                    days.forEach(item => {
+                        let processedDayData = utility.processBillOfDay(item, keywords)
+                        // 当内容 items 的数量大于 0 时
+                        if (processedDayData.items.length > 0){
+                            daysData.push(processedDayData)
+                            monthSum = monthSum + processedDayData.sum
+                            monthSumIncome = monthSumIncome + processedDayData.sumIncome
+                            monthSumOutput = monthSumOutput + processedDayData.sumOutput
+                            food.breakfast = food.breakfast + processedDayData.items.filter(item => item.item.indexOf('早餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
+                            food.launch = food.launch + processedDayData.items.filter(item => item.item.indexOf('午餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
+                            food.dinner = food.dinner + processedDayData.items.filter(item => item.item.indexOf('晚餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
                         }
-
-                        // 用一次循环处理完所有需要在循环中处理的事：合总额、map DayArray
-                        let keywords = req.query.keyword ? req.query.keyword.split(' ') : []
-                        daysArray.forEach(item => {
-                            let processedDayData = utility.processBillOfDay(item, keywords)
-                            // 当内容 items 的数量大于 0 时
-                            if (processedDayData.items.length > 0){
-                                daysData.push(processedDayData)
-                                monthSum = monthSum + processedDayData.sum
-                                monthSumIncome = monthSumIncome + processedDayData.sumIncome
-                                monthSumOutput = monthSumOutput + processedDayData.sumOutput
-                                food.breakfast = food.breakfast + processedDayData.items.filter(item => item.item.indexOf('早餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
-                                food.launch = food.launch + processedDayData.items.filter(item => item.item.indexOf('午餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
-                                food.dinner = food.dinner + processedDayData.items.filter(item => item.item.indexOf('晚餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
-                            }
-                        })
-
-                        if (daysData.length > 0){
-                            responseData.push({
-                                id: daysArray[0].id,
-                                month_id: daysArray[0].month_id,
-                                month: daysArray[0].month,
-                                count: daysArray.length,
-                                days: daysData,
-                                sum: utility.formatMoney(monthSum),
-                                sumIncome: utility.formatMoney(monthSumIncome),
-                                sumOutput: utility.formatMoney(monthSumOutput),
-                                food: {
-                                    breakfast: utility.formatMoney(food.breakfast),
-                                    launch: utility.formatMoney(food.launch),
-                                    dinner: utility.formatMoney(food.dinner),
-                                    sum: utility.formatMoney(food.breakfast + food.launch + food.dinner)
+                        if(item.month_id != curMonth)
+                        {
+                            if(daysData.length > 0)
+                            {
+                                let lastDay = processedDayData.items.length>0 ? daysData.pop() : null;
+                                if(daysData.length > 0)
+                                {
+                                    responseData.push({
+                                        id: daysData[0].id,
+                                        month_id: curMonth,
+                                        month: daysData[0].month,
+                                        count: daysData.length,
+                                        days: daysData,
+                                        sum: utility.formatMoney(monthSum),
+                                        sumIncome: utility.formatMoney(monthSumIncome),
+                                        sumOutput: utility.formatMoney(monthSumOutput),
+                                        food: {
+                                            breakfast: utility.formatMoney(food.breakfast),
+                                            launch: utility.formatMoney(food.launch),
+                                            dinner: utility.formatMoney(food.dinner),
+                                            sum: utility.formatMoney(food.breakfast + food.launch + food.dinner)
+                                        }
+                                    })
                                 }
-                            })
+                                daysData = [];
+                                if(lastDay)
+                                {
+                                    daysData.push(lastDay);
+                                }
+                                monthSum = 0;
+                                monthSumIncome = 0;
+                                monthSumOutput = 0;
+                                food = {
+                                    breakfast: 0,
+                                    launch: 0,
+                                    dinner: 0,
+                                }
+                            }
+                            curMonth = item.month_id
                         }
-
                     })
-                    responseData.sort((a, b) => a.year > b.year ? 1 : -1)
+
                     res.send(new ResponseSuccess(responseData))
                 })
                 .catch(err => {
@@ -138,56 +136,37 @@ router.get('/keys', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let sqlRequests = []
-            let sqlArray = []
-            years.forEach(year => {
-                for (let month = 1; month <= 12; month ++ ){
-                    sqlArray.push(`
-                        select *,
-                        date_format(date,'%Y%m') as month_id,
-                        date_format(date,'%m') as month
-                        from diaries 
-                        where year(date) = ${year}
-                        and month(date) = ${month}
-                        and category = 'bill'
-                        and uid = ${userInfo.uid}
-                        order by date asc;
-                    `)
-                }
-            })
-
-            sqlRequests.push(utility.getDataFromDB( 'diary', sqlArray))
-            // 这里有个异步运算的弊端，所有结果返回之后，我需要重新给他们排序，因为他们的返回顺序是不定的。难搞哦
             let BillKeyMap = new Map()
 
-            Promise
-                .all(sqlRequests)
-                .then(yearDataArray => {
+            utility.knex('diaries').select('*', utility.knex.raw(`date_format(date,'%Y%m') as month_id,date_format(date,'%m') as month`))
+                .whereIn('year(date)', years)
+                .andWhere('category','bill')
+                .andWhere('uid', userInfo.uid)
+                .orderBy('date', 'desc')
+                .then(days => {
                     let responseData = []
-                    let afterValues = yearDataArray[0].filter(item => item.length > 0) // 去年内容为 0 的年价数据
-                    afterValues.forEach(daysArray => {
-                        daysArray.forEach(item => {
-                            let processedDayData = utility.processBillOfDay(item, [])
-                            // 当内容 items 的数量大于 0 时
-                            if (processedDayData.items.length > 0){
-                                processedDayData.items.forEach(billItem => {
-                                    if (BillKeyMap.has(billItem.item)){ // 如果已存在账单项
-                                        let count = BillKeyMap.get(billItem.item)
-                                        BillKeyMap.set(billItem.item, count + 1)
-                                    } else {
-                                        BillKeyMap.set(billItem.item, 1) // 初始化为1
-                                    }
-                                })
-                            }
-                        })
 
+                    days.forEach(item => {
+                        let processedDayData = utility.processBillOfDay(item, [])
+                        // 当内容 items 的数量大于 0 时
+                        if (processedDayData.items.length > 0){
+                            processedDayData.items.forEach(billItem => {
+                                if (BillKeyMap.has(billItem.item)){ // 如果已存在账单项
+                                    let count = BillKeyMap.get(billItem.item)
+                                    BillKeyMap.set(billItem.item, count + 1)
+                                } else {
+                                    BillKeyMap.set(billItem.item, 1) // 初始化为1
+                                }
+                            })
+                        }
                     })
+
                     let billKeyArray = []
                     BillKeyMap.forEach((value,key,map) => {
                         if (BillKeyMap.get(key) >= 1){
                             billKeyArray.push({
                                 item: key,
-                                value: BillKeyMap.get(key)
+                                value: value,
                             })
                         }
                     })
@@ -207,8 +186,7 @@ router.get('/day-sum', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            utility
-                .getDataFromDB('diary', [`select content, date  from diaries where category = 'bill' and uid = '${userInfo.uid}'`])
+            utility.knex('diaries').select('content', 'date').where('category', 'bill').andWhere('uid', userInfo.uid)
                 .then(billData => {
                     let finalData = billData.map(item => {
                         let originalData = utility.processBillOfDay(item)
@@ -238,65 +216,64 @@ router.get('/month-sum', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            let yearNow = new Date().getFullYear()
-            let sqlRequests = []
-            let sqlArray = []
-            years.forEach(year => {
-                for (let month = 1; month <= 12; month ++ ){
-                    sqlArray.push(`
-                        select content, date,
-                        date_format(date,'%Y%m') as month_id,
-                        date_format(date,'%m') as month
-                        from diaries 
-                        where year(date) = ${year}
-                        and month(date) = ${month}
-                        and category = 'bill'
-                        and uid = ${userInfo.uid}
-                        order by date asc;
-                    `)
-                }
-            })
-
-            sqlRequests.push(utility.getDataFromDB( 'diary', sqlArray))
-            // 这里有个异步运算的弊端，所有结果返回之后，我需要重新给他们排序，因为他们的返回顺序是不定的。难搞哦
-            Promise.all(sqlRequests)
-                .then(yearDataArray => {
+            utility.knex('diaries').select('*', utility.knex.raw(`date_format(date,'%Y%m') as month_id,date_format(date,'%m') as month`))
+                .whereIn('year(date)', years)
+                .andWhere('category','bill')
+                .andWhere('uid', userInfo.uid)
+                .orderBy('date', 'desc')
+                .then(days => {
                     let responseData = []
-                    let afterValues = yearDataArray[0].filter(item => item.length > 0) // 去年内容为 0 的年价数据
-                    afterValues.forEach(daysArray => {
 
-                        let daysData = []
-                        let monthSum = 0
-                        let monthSumIncome = 0
-                        let monthSumOutput = 0
+                    let daysData = []
+                    let monthSum = 0
+                    let monthSumIncome = 0
+                    let monthSumOutput = 0
 
-                        // 用一次循环处理完所有需要在循环中处理的事：合总额、map DayArray
-                        let keywords = req.query.keyword ? req.query.keyword.split(' ') : []
-                        daysArray.forEach(item => {
-                            let processedDayData = utility.processBillOfDay(item, keywords)
-                            // 当内容 items 的数量大于 0 时
-                            if (processedDayData.items.length > 0){
-                                daysData.push(processedDayData)
-                                monthSum = monthSum + processedDayData.sum
-                                monthSumIncome = monthSumIncome + processedDayData.sumIncome
-                                monthSumOutput = monthSumOutput + processedDayData.sumOutput
-                            }
-                        })
+                    let curMonth = days[0].month_id;
 
-                        if (daysData.length > 0){
-                            responseData.push({
-                                id: daysArray[0].id,
-                                month_id: daysArray[0].month_id,
-                                month: daysArray[0].month,
-                                count: daysArray.length,
-                                sum: utility.formatMoney(monthSum),
-                                sumIncome: utility.formatMoney(monthSumIncome),
-                                sumOutput: utility.formatMoney(monthSumOutput),
-                            })
+
+                    // 用一次循环处理完所有需要在循环中处理的事：合总额、map DayArray
+                    let keywords = req.query.keyword ? req.query.keyword.split(' ') : []
+                    days.forEach(item => {
+                        let processedDayData = utility.processBillOfDay(item, keywords)
+                        // 当内容 items 的数量大于 0 时
+                        if (processedDayData.items.length > 0){
+                            daysData.push(processedDayData)
+                            monthSum = monthSum + processedDayData.sum
+                            monthSumIncome = monthSumIncome + processedDayData.sumIncome
+                            monthSumOutput = monthSumOutput + processedDayData.sumOutput
                         }
+                        if (curMonth != item.month_id)
+                        {
+                            if(daysData.length > 0)
+                            {
+                                let lastDay = processedDayData.items.length>0 ? daysData.pop() : null;
+                                if (daysData.length > 0){
+                                    responseData.push({
+                                        id: daysData[0].id,
+                                        month_id: daysData[0].month_id,
+                                        month: daysData[0].month,
+                                        count: daysData.length,
+                                        sum: utility.formatMoney(monthSum),
+                                        sumIncome: utility.formatMoney(monthSumIncome),
+                                        sumOutput: utility.formatMoney(monthSumOutput),
+                                    })
+                                }
 
+                                daysData = [];
+                                if(lastDay)
+                                {
+                                    daysData.push(lastDay);
+                                }
+                                monthSum = 0;
+                                monthSumIncome = 0;
+                                monthSumOutput = 0;
+                            }
+                            curMonth = item.mont_id;
+                        }
                     })
-                    responseData.sort((a, b) => a.year > b.year ? 1 : -1)
+
+
                     res.send(new ResponseSuccess(responseData))
                 })
                 .catch(err => {
@@ -307,7 +284,6 @@ router.get('/month-sum', (req, res, next) => {
             res.send(new ResponseError('', errInfo))
         })
 })
-
 
 
 module.exports = router

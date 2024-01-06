@@ -43,12 +43,6 @@ app.use('/diary-category' , routerDiaryCategory)
 app.use('/bank-card'      , routerBankCard)      // 银行卡列表
 app.use('/bill'           , routerBill)          // 账单
 
-// 地图管理
-let routerMapRoute        = require('./routes/map/map-route')
-let routerMapPointer      = require('./routes/map/map-pointer')
-app.use('/map-route'       , routerMapRoute)
-app.use('/map-pointer'     , routerMapPointer)
-
 
 // 图片、文件操作
 let routerFileManager = require('./routes/file/fileManager')
