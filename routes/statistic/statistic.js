@@ -25,7 +25,7 @@ router.get('/', (req, res, next) => {
                 )
             }
             query.then(data => {
-                    res.send(new ResponseSuccess(data))
+                    res.send(new ResponseSuccess(data[0]))
                 })
                 .catch(err => {
                     res.send(new ResponseError('', err.message))
@@ -54,7 +54,7 @@ router.get('/category', (req, res, next) => {
 
                         utility.knex('diaries').select(utility.knex.raw(select)).where('uid', userInfo.uid)
                             .then(data => {
-                                res.send(new ResponseSuccess(data))
+                                res.send(new ResponseSuccess(data[0]))
                             })
                             .catch(err => {
                                 res.send(new ResponseError(err))
@@ -74,41 +74,50 @@ router.get('/category', (req, res, next) => {
 
 // 年份月份数据
 router.get('/year', (req, res, next) => {
-    /*
     utility
      .verifyAuthorization(req)
-     .then(userinfo => {
-         let yearnow = new date().getfullyear()
-         let sqlrequests = []
-         for (let year = 1991; year <= yearnow; year++) {
-             let sqlarray = []
-             sqlarray.push(`
-             select
-             date_format(date,'%y%m') as id,
-             date_format(date,'%m') as month,
-             count(*) as 'count'
-             from diaries
-             where year(date) = ${year}
-             and uid = ${userinfo.uid}
-             group by month
-             order by month desc
-     `)
-             sqlrequests.push(utility.getdatafromdb('diary', sqlarray))
-         }
-         // 这里有个异步运算的弊端，所有结果返回之后，我需要重新给他们排序，因为他们的返回顺序是不定的。难搞哦
-         promise.all(sqlrequests)
-             .then(values => {
+     .then(userInfo => {
+         let query = utility.knex('diaries').select(utility.knex.raw(`date_format(date,'%Y%m') as ym, date_format(date,'%Y') as year, date_format(date, '%m') as month, count(*) as count`))
+             .where('uid', userInfo.uid).groupBy('ym').orderBy('ym')
+
+         //console.log(query.toString())
+
+         query
+             .then(months => {
                  let response = []
-                 values.foreach(data => {
-                     if (data.length > 0) { // 只统计有数据的年份
-                         response.push({
-                             year: data[0].id.substring(0, 4),
-                             count: data.map(item => item.count).reduce((a, b) => a + b),
-                             months: data
-                         })
+                 let yearData = []
+                 if (months.length == 0)
+                 {
+                     res.send(new ResponseSuccess([]));
+                     return;
+                 }
+                 let curYear = months[0].year
+                 months.forEach(month => {
+                     if(curYear != month.year)
+                     {
+                         if(yearData.length > 0)
+                         {
+                             response.push({
+                                 year: curYear,
+                                 count: yearData.map(item => item.count).reduce((a, b) => a + b),
+                                 months: yearData
+                             })
+                             yearData = []
+                         }
+                         curYear = month.year
                      }
+                     month.id = month.ym;
+                     delete(month.ym);
+                     yearData.push(month);
                  })
-                 response.sort((a, b) => a.year > b.year ? 1 : -1)
+                 if(yearData.length > 0)
+                 {
+                     response.push({
+                         year: curYear,
+                         count: yearData.map(item => item.count).reduce((a, b) => a + b),
+                         months: yearData
+                     })
+                 }
                  res.send(new ResponseSuccess(response))
              })
              .catch(err => {
@@ -116,11 +125,8 @@ router.get('/year', (req, res, next) => {
              })
      })
      .catch(errinfo => {
-         res.send(new ResponseError('', errinfo))
-     })
-     */
-
-    res.send(new ResponseSuccess([{year:'2023', count:0, months:[]}]))
+         res.send(new ResponseError('verifyError', errinfo))
+     });
 })
 
 // 用户统计信息

@@ -88,11 +88,11 @@ async function updateUserLastLoginTime(uid){
     try
     {
         await knex('users').update({last_visit_time: timeNow}).where('uid', uid)
-        console.log(`--- 成功：记录用户最后操作时间 ${timeNow} ${uid}`)
+        // console.log(`--- 成功：记录用户最后操作时间 ${timeNow} ${uid}`)
     }
     catch(e)
     {
-        console.log('--- 失败：记录用户最后操作时间 ${timeNow} ${uid}`')
+        console.log(`--- 失败：记录用户最后操作时间 ${timeNow} uid = ${uid}, err = ${e}`)
     }
 }
 

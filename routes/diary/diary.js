@@ -22,9 +22,8 @@ router.get('/list', (req, res, next) => {
                         {
                             continue;
                         }
-                        //console.log(`keyword : "${keyword}", length : ${keyword.length}, charAt : ${keyword.charCodeAt(0)}`)
                         query = query.andWhere(builder => {
-                            builder.whereLike('title', keyword).orWhereLike('content', keyword)
+                            builder.whereLike('title', `%${keyword}%`).orWhereLike('content', `%${keyword}%`)
                         });
                     }
                 }
@@ -53,7 +52,7 @@ router.get('/list', (req, res, next) => {
             if (req.query.dateFilter){
                 let year = req.query.dateFilter.substring(0,4)
                 let month = req.query.dateFilter.substring(4,6)
-                query = query.andWhereRaw(`YEAR(date)='${year}' AND MONTH(date)='${month}`)
+                query = query.andWhereRaw(`YEAR(date)='${year}' AND MONTH(date)='${month}'`)
             }
 
             query.orderBy('date', 'desc').offset(startPoint).limit(req.query.pageSize)
@@ -205,7 +204,7 @@ router.post('/add', (req, res, next) => {
                 .then(id => {
                     utility.knex('users').increment('count_diary', 1).where('uid', userInfo.uid).then(() => {})
                     utility.updateUserLastLoginTime(userInfo.uid)
-                    res.send(new ResponseSuccess({id: id}, '添加成功')) // 添加成功之后，返回添加后的日记 id
+                    res.send(new ResponseSuccess({id: id[0]}, '添加成功')) // 添加成功之后，返回添加后的日记 id
                 })
                 .catch(err => {
                     res.send(new ResponseError(err, '添加失败'))
