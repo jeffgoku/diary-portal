@@ -77,7 +77,7 @@ router.get('/year', (req, res, next) => {
     utility
      .verifyAuthorization(req)
      .then(userInfo => {
-         let query = utility.knex('diaries').select(utility.knex.raw(`date_format(date,'%Y%m') as ym, date_format(date,'%Y') as year, date_format(date, '%m') as month, count(*) as count`))
+         let query = utility.knex('diaries').select(utility.knex.raw(`${utility.ym_func} as ym, ${utility.y_func} as year, ${utility.m_func} as month, count(*) as count`))
              .where('uid', userInfo.uid).groupBy('ym').orderBy('ym')
 
          //console.log(query.toString())

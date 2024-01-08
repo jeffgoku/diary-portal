@@ -1,17 +1,17 @@
 const configDatabase = require('./configDatabase')
 const configProject = require('./configProject')
 
+const client = 'mysql'
 const knex = require('knex')({
-    client: 'mysql',
+    client: client,
     connection: {
-        host:     configDatabase.host,
-        user:     configDatabase.user,
-        password: configDatabase.password,
-        port:     configDatabase.port,
-        timezone: configDatabase.timezone,
-        database: 'diary',
+        ...configDatabase,
     }
 });
+
+const ym_func = client == 'mysql' ? `date_format(date, '%Y%m')`: `strftime('%Y%m', date)`
+const y_func = client == 'mysql' ? `date_format(date, '%Y')`: `strftime('%Y', date)`
+const m_func = client == 'mysql' ? `date_format(date, '%m')`: `strftime('%m', date)`
 
 // 验证用户是否有权限
 function verifyAuthorization(req){
@@ -154,5 +154,6 @@ module.exports = {
     unicodeEncode, unicodeDecode,
     verifyAuthorization,
     // Bill
-    processBillOfDay, formatMoney
+    processBillOfDay, formatMoney,
+    ym_func, y_func, m_func,
 }

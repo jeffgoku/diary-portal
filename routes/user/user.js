@@ -35,7 +35,7 @@ router.post('/register', (req, res, next) => {
 })
 
 function registerUser(req, res){
-    checkEmailOrUserNameExist(req.body.email, req.body.username)
+    checkEmailOrUserNameExist(req.body.email, req.body.nickname)
         .then(dataEmailExistArray => {
             // email 记录是否已经存在
             if (dataEmailExistArray.length > 0){
@@ -45,20 +45,31 @@ function registerUser(req, res){
                 // 明文密码通过 bcrypt 加密，对比密码也是通过  bcrypt
                 bcrypt.hash(req.body.password, 10, (err, encryptPassword) => {
                     // 注册的用户默认为普通用户
-                    utility.knex('users').insert({email:req.body.email, nickname:req.body.nickname||'', username: req.body.username ||'', password: encryptPassword, register_time: timeNow
-                            ,last_visit_time: timeNow, comment: req.body.comment || '', wx: req.body.wx||''
-                            ,phone: req.body.phone||'', homepage: req.body.homepage||'', gaode: req.body.gaode||'',group_id:2})
+                    utility.knex('users').insert({email:req.body.email,
+                            nickname:req.body.nickname||'',
+                            username: req.body.username ||'',
+                            password: encryptPassword,
+                            register_time: timeNow,
+                            last_visit_time: timeNow,
+                            comment: req.body.comment || '',
+                            wx: req.body.wx||'',
+                            phone: req.body.phone||'',
+                            homepage: req.body.homepage||'',
+                            count_diary: 0,
+                            sync_count: 0,
+                            group_id:2})
                         .then(uid=> {
-                            utility.knex('invitations').update({binding_uid: uid, date_register: timeNow}).where('id', req.body.invitationCode)
+                            utility.knex('invitations').update({binding_uid: uid[0], date_register: timeNow}).where('id', req.body.invitationCode)
                                 .then(resInvitation => {
                                     res.send(new ResponseSuccess('', '注册成功'))
                                 })
                                 .catch(err => {
-                                    res.send(new ResponseError('', '注册成功，邀请码信息更新失败'))
+                                    console.log('update invitation err : ' + err);
+                                    res.send(new ResponseError(err, '注册成功，邀请码信息更新失败'))
                                 })
                         })
                         .catch(err => {
-                            res.send(new ResponseError('', '注册失败'))
+                            res.send(new ResponseError(err, '注册失败'))
                         })
                 })
 
@@ -71,8 +82,8 @@ function registerUser(req, res){
 }
 
 // 检查用户名或邮箱是否存在
-function checkEmailOrUserNameExist(email, username){
-    return utility.knex('users').select().where('email', email).orWhere('username', username).limit(1)
+function checkEmailOrUserNameExist(email, nickname){
+    return utility.knex('users').select().where('email', email).orWhere('nickname', nickname).limit(1)
 }
 
 router.post('/list', (req, res, next) => {
@@ -248,12 +259,14 @@ router.post('/login', (req, res, next) => {
 
     utility.knex('users').select().where('email', req.body.email)
         .then(data => {
+            data = data[0]
             if (data) {
                 bcrypt.compare(req.body.password, data.password, function(err, isPasswordMatch) {
                     if (isPasswordMatch){
                         utility.updateUserLastLoginTime(req.body.email)
                         res.send(new ResponseSuccess(data,'登录成功'))
                     } else {
+                        console.log(data.password);
                         res.send(new ResponseError('','用户名或密码错误'))
                     }
                 })

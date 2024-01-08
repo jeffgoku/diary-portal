@@ -39,8 +39,8 @@ router.get('/sorted', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(async userInfo => {
-            let stream = utility.knex('diaries').select('*', utility.knex.raw(`date_format(date,'%Y%m') as month_id,date_format(date,'%m') as month`))
-                .whereIn(utility.knex.raw('year(date)'), req.query.years.split(','))
+            let stream = utility.knex('diaries').select('*', utility.knex.raw(`${utility.ym_func} as month_id, ${utility.m_func} as month`))
+                .whereIn(utility.knex.raw(utility.y_func), req.query.years.split(','))
                 .andWhere('category','bill')
                 .andWhere('uid', userInfo.uid)
                 .orderBy('date', 'desc').stream()
@@ -153,8 +153,8 @@ router.get('/keys', (req, res, next) => {
         .then(async userInfo => {
             let BillKeyMap = new Map()
 
-            let stream = utility.knex('diaries').select('*', utility.knex.raw(`date_format(date,'%Y%m') as month_id,date_format(date,'%m') as month`))
-                .where(utility.knex.raw('year(date)'), '>=', yearStart)
+            let stream = utility.knex('diaries').select('*', utility.knex.raw(`${utility.ym_func} as month_id, ${utility.m_func} as month`))
+                .where(utility.knex.raw(utility.y_func), '>=', yearStart)
                 .andWhere('category','bill')
                 .andWhere('uid', userInfo.uid)
                 .orderBy('date', 'desc').stream();
@@ -234,8 +234,8 @@ router.get('/month-sum', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            utility.knex('diaries').select('*', utility.knex.raw(`date_format(date,'%Y%m') as month_id,date_format(date,'%m') as month`))
-                .whereIn(utility.knex.raw('year(date)'), years)
+            utility.knex('diaries').select('*', utility.knex.raw(`${utility.ym_func} as month_id, ${utility.m_func} as month`))
+                .whereIn(utility.knex.raw(utility.y_func), years)
                 .andWhere('category','bill')
                 .andWhere('uid', userInfo.uid)
                 .orderBy('date', 'desc')

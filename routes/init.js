@@ -3,47 +3,44 @@ const router = express.Router()
 const utility = require('../config/utility')
 const ResponseSuccess = require("../response/ResponseSuccess");
 const ResponseError = require("../response/ResponseError");
-const { stat, writeFile } = require("fs");
+const { stat, writeFile } = require("node:fs");
 
 const LOCK_FILE_NAME = 'DATABASE_LOCK'
 
 router.get('/', (req, res, next) => {
 
-    stat(LOCK_FILE_NAME, ((err, stats) => {
-        if (err){
+    stat(LOCK_FILE_NAME, (async (err, stats) => {
+        if (err) {
             // 如果没有该文件，说明数据库没有初始化过
-            let tempConfigDatabase = {}
-            Object.assign(tempConfigDatabase, configDatabase)
-            delete tempConfigDatabase.database
-            const sqlCreation = 'CREATE DATABASE IF NOT EXISTS diary'
-            utility.knex.raw(sqlCreation)
-                .then(res => {
+            try
+            {
+                if(!utility.knex.client.config.client.endsWith('sqlite3'))
+                {
+                    const sqlCreation = 'CREATE DATABASE IF NOT EXISTS diary'
+                    await utility.knex.raw(sqlCreation)
                     console.log('- 1. success: create db diary')
-                    createTables()
-                        .then(msg => {
+                }
 
-                            writeFile(LOCK_FILE_NAME, 'Database has been locked, file add in ' + utility.dateFormatter(new Date()),err => {
-                                if (err){
-                                    res.send('初始化失败')
-                                } else {
-                                    res.send(
-                                        '数据库初始化成功：<br>' +
-                                        '数据库名： diary<br>' +
-                                        '创建 6 张表：users、user_group、diaries、diary_category、qrs、invitations <br>' +
-                                        '已创建数据库锁定文件： ' + LOCK_FILE_NAME
-                                    )
-                                }
-                            })
+                await createTables();
 
-                        })
-                        .catch(msg => {
-                            res.send(msg)
-                        })
+                writeFile(LOCK_FILE_NAME, 'Database has been locked, file add in ' + utility.dateFormatter(new Date()),err => {
+                    if (err){
+                        res.send('初始化失败')
+                    } else {
+                        res.send(
+                            '数据库初始化成功：<br>' +
+                            '数据库名： diary<br>' +
+                            '创建 6 张表：users、user_group、diaries、diary_category、qrs、invitations <br>' +
+                            '已创建数据库锁定文件： ' + LOCK_FILE_NAME
+                        )
+                    }
                 })
-                .catch(err => {
-                    console.log('- 1. fail : create db fails, \nwith err info: \n' + err.message)
-                    res.send(new ResponseError(err, err.message))
-                });
+            }
+            catch(err)
+            {
+                console.log('- 1. fail : create db fails, \nwith err info: \n' + err.message)
+                res.send(new ResponseError(err, err.message))
+            }
         } else {
             // 如果已经初始化过了
             res.send('该数据库已被初始化过，如果想重新初始化，请先删除项目中 <b>DATABASE_LOCK</b> 文件')
@@ -51,11 +48,12 @@ router.get('/', (req, res, next) => {
     }))
 })
 
-async function createTables2() {
-    const kenx = utility.knex;
+async function createTables() {
+    const knex = utility.knex;
+    const isMySql = knex.client.config.client == 'mysql';
     try
     {
-        await knex.schema.dropTableIfExist('diary_category');
+        await knex.schema.dropTableIfExists('diary_category');
         await knex.schema.createTable('diary_category', function (table) {
             table.tinyint('sort_id').defaultTo(null);
             table.string('name_en', 50).notNull().comment('类别英文名').primary();
@@ -64,18 +62,13 @@ async function createTables2() {
             table.string('color',10).notNull().defaultTo('#cccccc').comment('类别颜色');
             table.datetime('date_init').notNull();
 
-            table.engine('InnoDB');
+            if(isMySql)
+                table.engine('InnoDB');
         });
 
         await knex('diary_category').insert([
             { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
             { sort_id: 3,  name_en: 'bigevent',  name:'大事', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
-            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
-            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
-            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
-            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
-            { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
-            { sort_id: 3,  name_en: 'bigevent',  name:'大事', count:0, color:'#FF3B30', date_init:'2022-03-23 21:23:02'},
             { sort_id: 10, name_en: 'bill',      name:'账单', count:0, color:'#8bc34a', date_init:'2022-05-23 21:23:02'},
             { sort_id: 8,  name_en: 'film',      name:'电影', count:0, color:'#FF2D70', date_init:'2022-03-23 21:23:02'},
             { sort_id: 7,  name_en: 'game',      name:'游戏', count:0, color:'#5AC8FA', date_init:'2022-03-23 21:23:02'},
@@ -110,7 +103,8 @@ async function createTables2() {
             table.string('geolocation', 255).defaultTo(null).comment('经纬度');
             table.primary(['uid', 'email']);
 
-            table.engine('InnoDB');
+            if(isMySql)
+                table.engine('InnoDB');
         });
 
         await knex.schema.dropTableIfExists('file_manager');
@@ -124,7 +118,8 @@ async function createTables2() {
             table.integer('uid').notNull().references('uid').inTable('users').comment('uid');
             table.integer('size').notNull().comment('file size');
 
-            table.engine('InnoDB');
+            if(isMySql)
+                table.engine('InnoDB');
         });
 
         await knex.schema.dropTableIfExists('user_group');
@@ -133,7 +128,8 @@ async function createTables2() {
             table.string('name').notNull().comment("group name");
             table.string('description');
 
-            table.engine('InnoDB');
+            if(isMySql)
+                table.engine('InnoDB');
         });
 
         const groups = [
@@ -151,7 +147,8 @@ async function createTables2() {
             table.datetime('date_register').notNull().comment('注册时间');
             table.integer('binding_uid').index().references('uid').inTable('users').onDelete('restrict').onUpdate('restrict').comment("group name");
 
-            table.engine('InnoDB');
+            if(isMySql)
+                table.engine('InnoDB');
         });
 
 
@@ -172,7 +169,8 @@ async function createTables2() {
             table.smallint('is_public',1).notNull().defaultTo(0).comment('是否共享');
             table.smallint('is_markdown',1).notNull().defaultTo(0).comment('是否为markdown');
 
-            table.engine('InnoDB');
+            if(isMySql)
+                table.engine('InnoDB');
         });
     }
     catch(err)
