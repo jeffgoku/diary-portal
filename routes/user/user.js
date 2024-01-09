@@ -45,7 +45,8 @@ function registerUser(req, res){
                 // 明文密码通过 bcrypt 加密，对比密码也是通过  bcrypt
                 bcrypt.hash(req.body.password, 10, (err, encryptPassword) => {
                     // 注册的用户默认为普通用户
-                    utility.knex('users').insert({email:req.body.email,
+                    utility.knex('users').insert({
+                            email:req.body.email,
                             nickname:req.body.nickname||'',
                             username: req.body.username ||'',
                             password: encryptPassword,
@@ -58,7 +59,7 @@ function registerUser(req, res){
                             count_diary: 0,
                             sync_count: 0,
                             group_id:2})
-                        .then(uid=> {
+                        .then( uid => {
                             utility.knex('invitations').update({binding_uid: uid[0], date_register: timeNow}).where('id', req.body.invitationCode)
                                 .then(resInvitation => {
                                     res.send(new ResponseSuccess('', '注册成功'))
@@ -257,7 +258,7 @@ router.delete('/delete', (req, res, next) => {
 
 router.post('/login', (req, res, next) => {
 
-    utility.knex('users').select().where('email', req.body.email)
+    utility.knex('users').select().where('email', req.body.email).limit(1)
         .then(data => {
             data = data[0]
             if (data) {

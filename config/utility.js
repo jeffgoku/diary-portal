@@ -9,9 +9,33 @@ const knex = require('knex')({
     }
 });
 
-const ym_func = client == 'mysql' ? `date_format(date, '%Y%m')`: `strftime('%Y%m', date)`
-const y_func = client == 'mysql' ? `date_format(date, '%Y')`: `strftime('%Y', date)`
-const m_func = client == 'mysql' ? `date_format(date, '%m')`: `strftime('%m', date)`
+let ym_func, y_func, m_func;
+let db_type;
+
+switch(client)
+{
+    case 'mysql':
+        ym_func = `date_format(date, '%Y%m')`;
+        y_func = `date_format(date, '%Y')`;
+        m_func = `date_format(date, '%m')`;
+        db_type = 'mysql';
+        break;
+    case 'better-sqlite3':
+    case 'sqlite3':
+        ym_func = `strftime('%Y%m', date)`
+        y_func = `strftime('%Y', date)`
+        m_func = `strftime('%m', date)`
+        db_type = 'sqlite3'
+        break;
+    case 'pg':
+        ym_func = `to_char(date, 'YYYYMM')`
+        y_func = `extract(year from date)`
+        m_func = `extract(month from date)`
+        db_type = 'postgresql'
+        break;
+    default:
+        throw new Error('not supported database type, for now only support sqlite3, postgresql and mysql');
+}
 
 // 验证用户是否有权限
 function verifyAuthorization(req){
@@ -155,5 +179,5 @@ module.exports = {
     verifyAuthorization,
     // Bill
     processBillOfDay, formatMoney,
-    ym_func, y_func, m_func,
+    ym_func, y_func, m_func, db_type
 }

@@ -14,7 +14,7 @@ router.get('/', (req, res, next) => {
             // 如果没有该文件，说明数据库没有初始化过
             try
             {
-                if(!utility.knex.client.config.client.endsWith('sqlite3'))
+                if(utility.db_type != 'sqlite3')
                 {
                     const sqlCreation = 'CREATE DATABASE IF NOT EXISTS diary'
                     await utility.knex.raw(sqlCreation)
@@ -50,7 +50,7 @@ router.get('/', (req, res, next) => {
 
 async function createTables() {
     const knex = utility.knex;
-    const isMySql = knex.client.config.client == 'mysql';
+    const isMySql = utility.db_type == 'mysql';
     try
     {
         await knex.schema.dropTableIfExists('diary_category');

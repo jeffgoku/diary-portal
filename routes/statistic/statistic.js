@@ -108,6 +108,7 @@ router.get('/year', (req, res, next) => {
                      }
                      month.id = month.ym;
                      delete(month.ym);
+                     delete(month.year);
                      yearData.push(month);
                  })
                  if(yearData.length > 0)

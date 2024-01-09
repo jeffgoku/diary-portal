@@ -39,7 +39,7 @@ router.get('/sorted', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(async userInfo => {
-            let stream = utility.knex('diaries').select('*', utility.knex.raw(`${utility.ym_func} as month_id, ${utility.m_func} as month`))
+            let stream = utility.knex('diaries').select('*', utility.knex.raw(`${utility.ym_func} as month_id`))
                 .whereIn(utility.knex.raw(utility.y_func), req.query.years.split(','))
                 .andWhere('category','bill')
                 .andWhere('uid', userInfo.uid)
@@ -61,21 +61,21 @@ router.get('/sorted', (req, res, next) => {
             let keywords = req.query.keyword ? req.query.keyword.split(' ') : []
             try
             {
-                let curMonth = null;
+                let curYearMonth = null;
                 for await (const item of stream)
                 {
-                    if (curMonth == null)
+                    if (curYearMonth == null)
                     {
-                        curMonth = item.month_id;
+                        curYearMonth = item.month_id;
                     }
-                    if(item.month_id != curMonth)
+                    if(item.month_id != curYearMonth)
                     {
                         if(daysData.length > 0)
                         {
                             responseData.push({
                                 id: daysData[0].id,
-                                month_id: curMonth,
-                                month: daysData[0].month,
+                                month_id: curYearMonth,
+                                month: curYearMonth.substr(4),
                                 count: daysData.length,
                                 days: daysData,
                                 sum: utility.formatMoney(monthSum),
@@ -98,7 +98,7 @@ router.get('/sorted', (req, res, next) => {
                                 dinner: 0,
                             }
                         }
-                        curMonth = item.month_id
+                        curYearMonth = item.month_id
                     }
                     let processedDayData = utility.processBillOfDay(item, keywords)
                     // 当内容 items 的数量大于 0 时
@@ -107,9 +107,9 @@ router.get('/sorted', (req, res, next) => {
                         monthSum = monthSum + processedDayData.sum
                         monthSumIncome = monthSumIncome + processedDayData.sumIncome
                         monthSumOutput = monthSumOutput + processedDayData.sumOutput
-                        food.breakfast = food.breakfast + processedDayData.items.filter(item => item.item.indexOf('早餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
-                        food.launch = food.launch + processedDayData.items.filter(item => item.item.indexOf('午餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
-                        food.dinner = food.dinner + processedDayData.items.filter(item => item.item.indexOf('晚餐') > -1).reduce((a,b) => a.price || 0 + b.price || 0, 0)
+                        food.breakfast = food.breakfast + processedDayData.items.filter(item => /早[餐饭点]/ig.test(item.item)).reduce((a,b) => a.price || 0 + b.price || 0, 0)
+                        food.launch = food.launch + processedDayData.items.filter(item => /午[餐饭点]/ig.test(item.item)).reduce((a,b) => a.price || 0 + b.price || 0, 0)
+                        food.dinner = food.dinner + processedDayData.items.filter(item => /晚[餐饭点]/ig.test(item.item)).reduce((a,b) => a.price || 0 + b.price || 0, 0)
                     }
                 }
 
@@ -117,8 +117,8 @@ router.get('/sorted', (req, res, next) => {
                 {
                     responseData.push({
                         id: daysData[0].id,
-                        month_id: curMonth,
-                        month: daysData[0].month,
+                        month_id: curYearMonth,
+                        month: curYearMonth.substr(4),
                         count: daysData.length,
                         days: daysData,
                         sum: utility.formatMoney(monthSum),
@@ -247,13 +247,13 @@ router.get('/month-sum', (req, res, next) => {
                     let monthSumIncome = 0
                     let monthSumOutput = 0
 
-                    let curMonth = days[0].month_id;
+                    let curYearMonth = days[0].month_id;
 
 
                     // 用一次循环处理完所有需要在循环中处理的事：合总额、map DayArray
                     let keywords = req.query.keyword ? req.query.keyword.split(' ') : []
                     days.forEach(item => {
-                        if (curMonth != item.month_id)
+                        if (curYearMonth != item.month_id)
                         {
                             if(daysData.length > 0)
                             {
@@ -271,7 +271,7 @@ router.get('/month-sum', (req, res, next) => {
                                 monthSumIncome = 0;
                                 monthSumOutput = 0;
                             }
-                            curMonth = item.mont_id;
+                            curYearMonth = item.mont_id;
                         }
                         let processedDayData = utility.processBillOfDay(item, keywords)
                         // 当内容 items 的数量大于 0 时
