@@ -37,6 +37,29 @@ switch(client)
         throw new Error('not supported database type, for now only support sqlite3, postgresql and mysql');
 }
 
+async function createDB() {
+    if (db_type == 'sqlite3')
+        return;
+
+    let config = object.assign({}, configDatabase);
+    const dbName = config.database;
+    delete(config.database)
+
+    const k = require('knex')({
+        client: client,
+        connection: config
+    });
+
+    try
+    {
+        await k.raw(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
+    }
+    finally
+    {
+        k.destroy()
+    }
+}
+
 // 验证用户是否有权限
 function verifyAuthorization(req){
     let token = req.get('Diary-Token') || req.query.token
@@ -174,6 +197,7 @@ function formatMoney(number){
 
 module.exports = {
     knex,
+    createDB,
     dateFormatter, updateUserLastLoginTime,
     unicodeEncode, unicodeDecode,
     verifyAuthorization,

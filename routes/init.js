@@ -3,7 +3,7 @@ const router = express.Router()
 const utility = require('../config/utility')
 const ResponseSuccess = require("../response/ResponseSuccess");
 const ResponseError = require("../response/ResponseError");
-const { stat, writeFile } = require("node:fs");
+const { stat, writeFileSync } = require("node:fs");
 
 const LOCK_FILE_NAME = 'DATABASE_LOCK'
 
@@ -14,26 +14,19 @@ router.get('/', (req, res, next) => {
             // 如果没有该文件，说明数据库没有初始化过
             try
             {
-                if(utility.db_type != 'sqlite3')
-                {
-                    const sqlCreation = 'CREATE DATABASE IF NOT EXISTS diary'
-                    await utility.knex.raw(sqlCreation)
-                    console.log('- 1. success: create db diary')
-                }
+                await utility.createDB();
+                console.log('- 1. success: create db diary')
 
-                await createTables();
+                await createTables(utility.knex, utility.db_type);
 
-                writeFile(LOCK_FILE_NAME, 'Database has been locked, file add in ' + utility.dateFormatter(new Date()),err => {
-                    if (err){
-                        res.send('初始化失败')
-                    } else {
-                        res.send(
-                            '数据库初始化成功：<br>' +
-                            '数据库名： diary<br>' +
-                            '创建 6 张表：users、user_group、diaries、diary_category、qrs、invitations <br>' +
-                            '已创建数据库锁定文件： ' + LOCK_FILE_NAME
-                        )
-                    }
+                writeFileSync(LOCK_FILE_NAME, 'Database has been locked, file add in ' + utility.dateFormatter(new Date()));
+
+                res.send(
+                    '数据库初始化成功：<br>' +
+                    '数据库名： diary<br>' +
+                    '创建 6 张表：users、user_group、diaries、diary_category、qrs、invitations <br>' +
+                    '已创建数据库锁定文件： ' + LOCK_FILE_NAME
+                )
                 })
             }
             catch(err)
@@ -48,9 +41,8 @@ router.get('/', (req, res, next) => {
     }))
 })
 
-async function createTables() {
-    const knex = utility.knex;
-    const isMySql = utility.db_type == 'mysql';
+async function createTables(knex, db_type) {
+    const isMySql = db_type == 'mysql';
     try
     {
         await knex.schema.dropTableIfExists('diary_category');
