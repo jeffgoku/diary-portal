@@ -22,11 +22,13 @@ router.get('/', (req, res, next) => {
                     res.send(new ResponseSuccess(billResponse, '请求成功'))
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err, err.message))
+                    console.log(err);
+                    res.send(new ResponseError(err.message, 'error'))
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -136,11 +138,13 @@ router.get('/sorted', (req, res, next) => {
                 res.send(new ResponseSuccess(responseData))
             }
             catch(err) {
-                res.send(new ResponseError(err, err.message))
+                console.log(err);
+                res.send(new ResponseError(err.message, 'error'))
             }
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -192,11 +196,13 @@ router.get('/keys', (req, res, next) => {
             }
             catch(err)
             {
-                res.send(new ResponseError(err, err.message))
+                console.log(err);
+                res.send(new ResponseError(err.message, 'error'))
             }
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -217,7 +223,7 @@ router.get('/day-sum', (req, res, next) => {
 
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -304,7 +310,8 @@ router.get('/month-sum', (req, res, next) => {
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 

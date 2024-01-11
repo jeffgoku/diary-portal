@@ -52,7 +52,7 @@ router.get('/list', (req, res, next) => {
             if (req.query.dateFilter){
                 let year = req.query.dateFilter.substring(0,4)
                 let month = req.query.dateFilter.substring(4,6)
-                query = query.andWhereRaw(`YEAR(date)='${year}' AND MONTH(date)='${month}'`)
+                query = query.andWhereRaw(`${utility.y_func}='${year}' AND ${utility.m_func}='${month}'`)
             }
 
             query.orderBy('date', 'desc').offset(startPoint).limit(req.query.pageSize)
@@ -73,11 +73,13 @@ router.get('/list', (req, res, next) => {
                 res.send(new ResponseSuccess(data, '请求成功'))
             })
             .catch(err => {
-                res.send(new ResponseError(err, err.message))
+                console.log(err);
+                res.send(new ResponseError(err.message, 'error'))
             })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -100,11 +102,13 @@ router.get('/export', (req, res, next) => {
                     res.send(new ResponseSuccess(data, '请求成功'))
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err, err.message))
+                    console.log(err);
+                    res.send(new ResponseError(err.message, 'error'))
                 })
         })
         .catch(verified => {
-            res.send(new ResponseError(verified, '无权查看日记列表：用户信息错误'))
+            console.log(verrified);
+            res.send(new ResponseError(verified.message, '无权查看日记列表：用户信息错误'))
         })
 })
 
@@ -134,11 +138,13 @@ router.get('/temperature', (req, res, next) => {
                 res.send(new ResponseSuccess(data, '请求成功'))
             })
             .catch(err => {
-                res.send(new ResponseError(err, err.message))
+                console.log(err);
+                res.send(new ResponseError(err.message, 'error'))
             })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -178,12 +184,14 @@ router.get('/detail', (req, res, next) => {
                         }
                     })
                     .catch(errInfo => {
-                        res.send(new ResponseError('', errInfo))
+                        console.log(errInfo);
+                        res.send(new ResponseError(errInfo.message, 'error'))
                     })
             }
         })
         .catch(err => {
-            res.send(new ResponseError(err,))
+            console.log(err);
+            res.send(new ResponseError(err.message,'error'))
         })
 })
 
@@ -200,18 +208,20 @@ router.post('/add', (req, res, next) => {
 
             utility.knex('diaries').insert({title:parsedTitle, content: parsedContent, category: req.body.category, weather: req.body.weather, 
                     temperature: req.body.temperature || 18, temperature_outside: req.body.temperatureOutside || 18,
-                    date_create: timeNow, date_modify: timeNow, date: req.body.date, uid: userInfo.uid, is_public: req.body.isPublic||0, is_markdown: req.body.isMarkdown || 0})
+                    date_create: timeNow, date_modify: timeNow, date: req.body.date, uid: userInfo.uid, is_public: req.body.isPublic||0, is_markdown: req.body.isMarkdown || 0}).returning('id')
                 .then(id => {
                     utility.knex('users').increment('count_diary', 1).where('uid', userInfo.uid).then(() => {})
                     utility.updateUserLastLoginTime(userInfo.uid)
-                    res.send(new ResponseSuccess({id: id[0]}, '添加成功')) // 添加成功之后，返回添加后的日记 id
+                    res.send(new ResponseSuccess(id[0], '添加成功')) // 添加成功之后，返回添加后的日记 id
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err, '添加失败'))
+                    console.log(err)
+                    res.send(new ResponseError('error', '添加失败'))
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo)
+            res.send(new ResponseError('error', 'error'))
         })
 })
 
@@ -234,11 +244,13 @@ router.put('/modify', (req, res, next) => {
                     res.send(new ResponseSuccess('', '修改成功'))
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err, '修改失败'))
+                    console.log(err);
+                    res.send(new ResponseError('error', '修改失败'))
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError('error', 'error'))
         })
 })
 
@@ -258,11 +270,13 @@ router.delete('/delete', (req, res, next) => {
                     }
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err,))
+                    console.log(err)
+                    res.send(new ResponseError('error','select user error'))
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo)
+            res.send(new ResponseError('', 'authorize user error'))
         })
 })
 
@@ -280,11 +294,13 @@ router.post('/clear', (req, res, next) => {
                     res.send(new ResponseSuccess({affectedRows}, `清空成功：${affectedRows} 条日记`))
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err, err.message))
+                    console.log(err);
+                    res.send(new ResponseError(err.message, 'error'))
                 })
         })
         .catch(verified => {
-            res.send(new ResponseError(verified, '无权查看日记列表：用户信息错误'))
+            console.log(verified);
+            res.send(new ResponseError(verified.message, '无权查看日记列表：用户信息错误'))
         })
 })
 

@@ -27,12 +27,14 @@ router.get('/', (req, res, next) => {
             query.then(data => {
                     res.send(new ResponseSuccess(data[0]))
                 })
-                .catch(err => {
-                    res.send(new ResponseError('', err.message))
+                .catch(errInfo => {
+                    console.log(errInfo);
+                    res.send(new ResponseError(errInfo.message, 'error'))
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -56,19 +58,21 @@ router.get('/category', (req, res, next) => {
                             .then(data => {
                                 res.send(new ResponseSuccess(data[0]))
                             })
-                            .catch(err => {
-                                res.send(new ResponseError(err))
+                            .catch(errInfo => {
+                                console.log(errInfo);
+                                res.send(new ResponseError(errInfo.message, 'error'))
                             })
                     } else {
                         res.send(new ResponseError('', '类别列表查询出错'))
                     }
                 })
-                .catch(err => {
-                    res.send(new ResponseError(err,))
+                .catch(errInfo => {
+                    res.send(new ResponseError(errInfo.message, 'error'))
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -77,7 +81,7 @@ router.get('/year', (req, res, next) => {
     utility
      .verifyAuthorization(req)
      .then(userInfo => {
-         let query = utility.knex('diaries').select(utility.knex.raw(`${utility.ym_func} as ym, ${utility.y_func} as year, ${utility.m_func} as month, count(*) as count`))
+         let query = utility.knex('diaries').select(utility.knex.raw(`${utility.ym_func} as ym, count(*) as count`))
              .where('uid', userInfo.uid).groupBy('ym').orderBy('ym')
 
          //console.log(query.toString())
@@ -91,9 +95,10 @@ router.get('/year', (req, res, next) => {
                      res.send(new ResponseSuccess([]));
                      return;
                  }
-                 let curYear = months[0].year
+                 let curYear = months[0].ym.substr(0, 4)
                  months.forEach(month => {
-                     if(curYear != month.year)
+                     let year = month.ym.substr(0,4)
+                     if(curYear != year)
                      {
                          if(yearData.length > 0)
                          {
@@ -104,11 +109,12 @@ router.get('/year', (req, res, next) => {
                              })
                              yearData = []
                          }
-                         curYear = month.year
+                         curYear = year
                      }
                      month.id = month.ym;
+                     month.month = month.ym.substr(4)
+
                      delete(month.ym);
-                     delete(month.year);
                      yearData.push(month);
                  })
                  if(yearData.length > 0)
@@ -122,11 +128,13 @@ router.get('/year', (req, res, next) => {
                  res.send(new ResponseSuccess(response))
              })
              .catch(err => {
-                 res.send(new ResponseError(err, err.message))
+                console.log(errInfo);
+                res.send(new ResponseError(err.message, 'error'))
              })
      })
-     .catch(errinfo => {
-         res.send(new ResponseError('verifyError', errinfo))
+     .catch(errInfo => {
+        console.log(errInfo);
+        res.send(new ResponseError(errInfo.message, 'verifyError'))
      });
 })
 
@@ -135,17 +143,19 @@ router.get('/users', (req, res, next) => {
     utility
     .verifyAuthorization(req)
     .then(userInfo => {
-        utility.knex('users').select('uid','last_visit_time', 'nickname', 'register_time', 'count_diary', 'count_dict', 'count_map_route', 'sync_count')
+        utility.knex('users').select('uid','last_visit_time', 'nickname', 'register_time', 'count_diary', 'sync_count')
             .where('count_diary', '>', 5).orWhere('sync_count', '>=', 5)
             .then(data => {
                 res.send(new ResponseSuccess(data))
             })
             .catch(err => {
-                res.send(new ResponseError(err, err.message))
+                console.log(err);
+                res.send(new ResponseError(err.message, 'error'))
             })
     })
     .catch(errInfo => {
-        res.send(new ResponseError('', errInfo))
+        console.log(errInfo);
+        res.send(new ResponseError(errInfo.message, 'error'))
     })
 })
 
@@ -159,11 +169,13 @@ router.get('/weather', (req, res, next) => {
                     res.send(new ResponseSuccess(weatherData, '请求成功'))
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err, '数据库请求错误'))
+                    console.log(err)
+                    res.send(new ResponseError(err.message, '数据库请求错误'))
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.log(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 
 })
