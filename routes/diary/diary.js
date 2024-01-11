@@ -212,7 +212,15 @@ router.post('/add', (req, res, next) => {
                 .then(id => {
                     utility.knex('users').increment('count_diary', 1).where('uid', userInfo.uid).then(() => {})
                     utility.updateUserLastLoginTime(userInfo.uid)
-                    res.send(new ResponseSuccess(id[0], '添加成功')) // 添加成功之后，返回添加后的日记 id
+                    if (typeof id[0] == 'number')
+                    {
+                        id = {id:id[0]}
+                    }
+                    else
+                    {
+                        id = id[0]
+                    }
+                    res.send(new ResponseSuccess(id, '添加成功')) // 添加成功之后，返回添加后的日记 id
                 })
                 .catch(err => {
                     console.log(err)

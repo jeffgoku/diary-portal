@@ -58,9 +58,17 @@ function registerUser(req, res){
                             homepage: req.body.homepage||'',
                             count_diary: 0,
                             sync_count: 0,
-                            group_id:2})
+                            group_id:2}).returning('uid')
                         .then( uid => {
-                            utility.knex('invitations').update({binding_uid: uid[0], date_register: timeNow}).where('id', req.body.invitationCode)
+                            if (typeof uid[0] == 'number')
+                            {
+                                uid = uid[0];
+                            }
+                            else
+                            {
+                                uid = uid[0].uid
+                            }
+                            utility.knex('invitations').update({binding_uid: uid, date_register: timeNow}).where('id', req.body.invitationCode)
                                 .then(resInvitation => {
                                     res.send(new ResponseSuccess('', '注册成功'))
                                 })
@@ -264,7 +272,7 @@ router.post('/login', (req, res, next) => {
             if (data) {
                 bcrypt.compare(req.body.password, data.password, function(err, isPasswordMatch) {
                     if (isPasswordMatch){
-                        utility.updateUserLastLoginTime(req.body.email)
+                        utility.updateUserLastLoginTime(data.uid)
                         res.send(new ResponseSuccess(data,'登录成功'))
                     } else {
                         console.log(data.password);
