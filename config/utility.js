@@ -1,6 +1,6 @@
+const { existsSync, unlinkSync } = require('node:fs')
 const configDatabase = require('./configDatabase')
 const configProject = require('./configProject')
-
 
 let ym_func, y_func, m_func;
 let db_type;
@@ -212,6 +212,71 @@ async function createInitData(knex) {
     ];
 
     await knex('user_group').insert(groups);
+}
+
+async function copyTable(k, tableName)
+{
+	const kPageSize = 100;
+
+    let c = await knex(tableName).select().count();
+	if (c.length > 0)
+	{
+		c = c[0]
+		for(let i = 0; i<c; i += kPageSize)
+		{
+			let data = await knex(tableName).select().limit(kPageSize).offset(i);
+
+			await k(tableName).insert(data);
+		}
+
+		let reminder = c % kPageSize;
+		if (c > kPageSize && reminder > 0)
+		{
+			let data = await knex(tableName).select().offset(c-reminder);
+			await k(tableName).insert(data);
+		}
+	}
+}
+
+async function toDB(k)
+{
+	await createTables(k);
+
+	await copyTable(k, 'file_manager');
+
+	await copyTable(k, 'invitations');
+
+    await copyTable(k, 'user_group');
+
+	await copyTable(k, 'diary_category');
+
+    await copyTable(k, 'users');
+
+	await copyTable(k, 'diaries');
+}
+
+async function toSqliteDB(dbFilename)
+{
+	if (existsSync(dbFilename))
+	{
+		unlinkSync(dbFilename);
+	}
+
+	let k = require('knex')({
+		client: 'better-sqlite3',
+		connection: {
+			filename: dbFilename
+		}
+	});
+
+	try
+	{
+		await toDB(k);
+	}
+	catch(e)
+	{
+		k.destroy();
+	}
 }
 
 
