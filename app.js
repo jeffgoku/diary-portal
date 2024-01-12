@@ -3,6 +3,9 @@ const express = require('express')
 const path = require('path')
 const logger = require('morgan')
 
+const utility = require('./config/utility')
+const { unlinkSync } = require('node:fs')
+
 
 const app = express()
 
@@ -48,10 +51,19 @@ app.use('/bill'           , routerBill)          // 账单
 let routerFileManager = require('./routes/file/fileManager')
 app.use('/file-manager', routerFileManager)
 
-// 七牛云图片
-let routerImageQiniu = require('./routes/image-qiniu/image-qiniu')
-app.use('/image-qiniu', routerImageQiniu)
+/*
+app.get('/sqliteDB', async (req, resp) => {
+    await utility.toSqliteDB('tempDB.sqlite');
 
+    resp.download('tempDB.sqlite', 'diary.sqlite', err => {
+        if (err) {
+            console.log(err);
+        }
+        console.log('download finished')
+        unlinkSync('tempDB.sqlite');
+    })
+});
+*/
 
 
 // catch 404 and forward to error handler

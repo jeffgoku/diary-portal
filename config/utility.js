@@ -1,4 +1,6 @@
 const { existsSync, unlinkSync } = require('node:fs')
+const util = require('util')
+
 const configDatabase = require('./configDatabase')
 const configProject = require('./configProject')
 
@@ -71,7 +73,7 @@ async function createDB() {
 }
 
 async function createTables(knex) {
-    const isMySql = db_type == 'mysql';
+    const isMySql = knex.client.driverName  == 'mysql';
     try
     {
         await knex.schema.dropTableIfExists('diaries');
@@ -83,11 +85,11 @@ async function createTables(knex) {
 
         await knex.schema.createTable('diary_category', function (table) {
             table.tinyint('sort_id').defaultTo(null);
-            table.string('name_en', 50).notNull().comment('类别英文名').primary();
-            table.string('name', 50).notNull().comment('类别名');
-            table.smallint('count').notNull().comment("类别日记数量");
-            table.string('color',10).notNull().defaultTo('#cccccc').comment('类别颜色');
-            table.datetime('date_init').notNull();
+            table.string('name_en', 50).notNullable().comment('类别英文名').primary();
+            table.string('name', 50).notNullable().comment('类别名');
+            table.smallint('count').notNullable().comment("类别日记数量");
+            table.string('color',10).notNullable().defaultTo('#cccccc').comment('类别颜色');
+            table.datetime('date_init').notNullable();
 
             if(isMySql)
                 table.engine('InnoDB');
@@ -95,7 +97,7 @@ async function createTables(knex) {
 
         await knex.schema.createTable(`user_group`, function (table) {
             table.primary().increments('id').comment("group ID");
-            table.string('name').notNull().comment("group name");
+            table.string('name').notNullable().comment("group name");
             table.string('description');
 
             if(isMySql)
@@ -104,17 +106,17 @@ async function createTables(knex) {
 
         await knex.schema.createTable(`users`, function (table) {
             table.increments('uid');
-            table.string('email', 50).notNull();
-            table.string('nickname',20).notNull().comment('昵称');
-            table.string('username',20).notNull().comment('用户名');
-            table.string('password',100).notNull().comment('密码');
-            table.datetime('register_time').notNull().comment('注册时间');
-            table.datetime('last_visit_time').notNull().comment('最后访问时间');
+            table.string('email', 50).notNullable();
+            table.string('nickname',20).notNullable().comment('昵称');
+            table.string('username',20).notNullable().comment('用户名');
+            table.string('password',100).notNullable().comment('密码');
+            table.datetime('register_time').notNullable().comment('注册时间');
+            table.datetime('last_visit_time').notNullable().comment('最后访问时间');
             table.string('comment',255).nullable().defaultTo(null).comment('注释');
             table.string('wx',255).nullable().defaultTo('').comment('微信二维码');
             table.string('phone',20).nullable().defaultTo(null).comment('手机号');
             table.string('homepage',100).nullable().defaultTo(null).comment('个人主页');
-            table.smallint('group_id').index().references('id').inTable('user_group').notNull().defaultTo(2).comment('用户组别ID');
+            table.smallint('group_id').index().references('id').inTable('user_group').notNullable().defaultTo(2).comment('用户组别ID');
             table.smallint('count_diary').defaultTo(0).comment('数量 - 日记');
             table.smallint('sync_count').defaultTo(0).comment('同步次数');
             table.string('avatar',255).defaultTo(null).comment('avatar图片地址');
@@ -134,13 +136,13 @@ async function createTables(knex) {
 
         await knex.schema.createTable(`file_manager`, function (table) {
             table.primary().increments('id').comment("hash");
-            table.string('name_original').notNull().comment("原文件名");
+            table.string('name_original').notNullable().comment("原文件名");
             table.string('path').comment('文件路径');
             table.string('description').comment('描述');
-            table.datetime('date_create').notNull().comment('创建时间');
-            table.string('type').notNull().defaultTo('image').comment('image, file');
-            table.integer('uid').notNull().references('uid').inTable('users').comment('uid');
-            table.integer('size').notNull().comment('file size');
+            table.datetime('date_create').notNullable().comment('创建时间');
+            table.string('type').notNullable().defaultTo('image').comment('image, file');
+            table.integer('uid').notNullable().references('uid').inTable('users').comment('uid');
+            table.integer('size').notNullable().comment('file size');
 
             if(isMySql)
                 table.engine('InnoDB');
@@ -149,8 +151,8 @@ async function createTables(knex) {
 
         await knex.schema.createTable(`invitations`, function (table) {
             table.string('id', 36).comment("ID");
-            table.datetime('date_create').notNull().comment('创建时间');
-            table.datetime('date_register').notNull().comment('注册时间');
+            table.datetime('date_create').notNullable().comment('创建时间');
+            table.datetime('date_register').comment('注册时间');
             table.integer('binding_uid').index().references('uid').inTable('users').onDelete('restrict').onUpdate('restrict').comment("group name");
             table.primary(['id']);
 
@@ -161,19 +163,19 @@ async function createTables(knex) {
 
         await knex.schema.createTable(`diaries`, function (table) {
             table.primary().increments('id').comment("ID");
-            table.datetime('date').notNull().comment('日记日期');
-            table.string('title').notNull().comment('标题');
-            table.text('content','longtext').notNull().comment('内容');
+            table.datetime('date').notNullable().comment('日记日期');
+            table.string('title').notNullable().comment('标题');
+            table.text('content','longtext').notNullable().comment('内容');
             table.smallint('temperature').defaultTo(-273).comment('室内温度');
             table.smallint('temperature_outside').defaultTo(-273).comment('室外温度');
             table.enu('weather', ['sunny','cloudy','overcast','sprinkle','rain','thunderstorm','fog','snow','tornado','smog','sandstorm'], {use_native:true, enumName:'weather'})
                 .defaultTo('sunny').comment('天气');
-            table.string('category', 30).index().defaultTo('life').notNull().references('name_en').inTable('diary_category').onDelete('restrict').onUpdate('restrict').comment('类别');
-            table.datetime('date_create').notNull().comment('创建日期');
-            table.datetime('date_modify').notNull().comment('编辑日期');
-            table.integer('uid').notNull().comment('用户ID');
-            table.smallint('is_public',1).notNull().defaultTo(0).comment('是否共享');
-            table.smallint('is_markdown',1).notNull().defaultTo(0).comment('是否为markdown');
+            table.string('category', 30).index().defaultTo('life').notNullable().references('name_en').inTable('diary_category').onDelete('restrict').onUpdate('restrict').comment('类别');
+            table.datetime('date_create').notNullable().comment('创建日期');
+            table.datetime('date_modify').notNullable().comment('编辑日期');
+            table.integer('uid').notNullable().comment('用户ID');
+            table.smallint('is_public',1).notNullable().defaultTo(0).comment('是否共享');
+            table.smallint('is_markdown',1).notNullable().defaultTo(0).comment('是否为markdown');
 
             if(isMySql)
                 table.engine('InnoDB');
@@ -181,11 +183,11 @@ async function createTables(knex) {
     }
     catch(err)
     {
-        console.log('-- 2. fail: create table diaries, users')
-        throw '失败：新建 tables: users, diaries，\ninfo: \n' + err.message
+        console.error('fail: create table diaries, users :\n' + err)
+        throw err
     }
-    console.log('-- 2. success: create table diaries, users')
-    return '成功：新建 tables: users, diaries'
+    console.log('success: create table diaries, users')
+    return 'ok'
 }
 
 async function createInitData(knex) {
@@ -218,24 +220,22 @@ async function copyTable(k, tableName)
 {
 	const kPageSize = 100;
 
-    let c = await knex(tableName).select().count();
+    let c = await knex(tableName).count({count:'*'})
 	if (c.length > 0)
 	{
-		c = c[0]
+		c = c[0].count;
+        console.debug(`${tableName} have ${c} rows`);
+
 		for(let i = 0; i<c; i += kPageSize)
 		{
 			let data = await knex(tableName).select().limit(kPageSize).offset(i);
-
-			await k(tableName).insert(data);
-		}
-
-		let reminder = c % kPageSize;
-		if (c > kPageSize && reminder > 0)
-		{
-			let data = await knex(tableName).select().offset(c-reminder);
 			await k(tableName).insert(data);
 		}
 	}
+    else
+    {
+        console.debug(`${tableName} is empty`);
+    }
 }
 
 async function toDB(k)
@@ -275,8 +275,12 @@ async function toSqliteDB(dbFilename)
 	}
 	catch(e)
 	{
-		k.destroy();
+        console.error(e);
 	}
+    finally
+    {
+		k.destroy();
+    }
 }
 
 
@@ -418,6 +422,7 @@ function formatMoney(number){
 module.exports = {
     knex,
     createDB, createTables, createInitData,
+    toSqliteDB,
     dateFormatter, updateUserLastLoginTime,
     unicodeEncode, unicodeDecode,
     verifyAuthorization,

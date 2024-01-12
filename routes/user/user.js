@@ -160,10 +160,6 @@ router.get('/avatar', (req, res, next) => {
 })
 
 
-router.post('/add', (req, res, next) => {
-})
-
-
 // 设置用户资料：昵称，avatar，手机号
 router.put('/set-profile', (req, res, next) => {
     res.send(new ResponseError('not implement','not implement'))
@@ -265,17 +261,16 @@ router.delete('/delete', (req, res, next) => {
 })
 
 router.post('/login', (req, res, next) => {
-
     utility.knex('users').select().where('email', req.body.email).limit(1)
         .then(data => {
-            data = data[0]
-            if (data) {
-                bcrypt.compare(req.body.password, data.password, function(err, isPasswordMatch) {
+            if (data.length > 0) {
+                user = data[0]
+                bcrypt.compare(req.body.password, user.password, function(err, isPasswordMatch) {
                     if (isPasswordMatch){
-                        utility.updateUserLastLoginTime(data.uid)
-                        res.send(new ResponseSuccess(data,'登录成功'))
+                        utility.updateUserLastLoginTime(user.uid)
+                        res.send(new ResponseSuccess(user,'登录成功'))
                     } else {
-                        console.log(data.password);
+                        console.log(user.password);
                         res.send(new ResponseError('','用户名或密码错误'))
                     }
                 })

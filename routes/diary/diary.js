@@ -152,6 +152,11 @@ router.get('/detail', (req, res, next) => {
     // 1. 先查询出日记结果
     utility.knex('diaries').select().where('id', req.query.diaryId)
         .then(dataDiary => {
+            if (dataDiary.length == 0)
+            {
+                res.send(new ResponseError('no diary for id', 'error'))
+                return;
+            }
             dataDiary = dataDiary[0]
             // decode unicode
             dataDiary.title = utility.unicodeDecode(dataDiary.title)

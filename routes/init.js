@@ -24,7 +24,7 @@ router.get('/', (req, res, next) => {
                 res.send(
                     '数据库初始化成功：<br>' +
                     '数据库名： diary<br>' +
-                    '创建 6 张表：users、user_group、diaries、diary_category、qrs、invitations <br>' +
+                    '创建 6 张表：users、user_group、diaries、diary_category、invitations, file_manager <br>' +
                     '已创建数据库锁定文件： ' + LOCK_FILE_NAME
                 )
             }
