@@ -155,7 +155,8 @@ router.get('/avatar', (req, res, next) => {
             res.send(new ResponseSuccess(data))
         })
         .catch(err => {
-            res.send(new ResponseError(err, err.message))
+            console.error(err)
+            res.send(new ResponseError('', err.message))
         })
 })
 
@@ -300,17 +301,19 @@ router.put('/change-password', (req, res, next) => {
             }
             bcrypt.hash(req.body.password, 10, (err, encryptPasswordNew) => {
                 utility.knex('users').update('password', encryptPasswordNew).where('email', userInfo.email)
-                    .then(dataChangePassword => {
+                    .then(count => {
                         utility.updateUserLastLoginTime(userInfo.uid)
                         res.send(new ResponseSuccess('', '修改密码成功'))
                     })
-                    .catch(errChangePassword => {
-                        res.send(new ResponseError('', '修改密码失败'))
+                    .catch(err => {
+                        console.error(err)
+                        res.send(new ResponseError(err.message, '修改密码失败'))
                     })
             })
         })
         .catch(err => {
-            res.send(new ResponseError(err, '无权操作'))
+            console.error(err)
+            res.send(new ResponseError(err.message, '无权操作'))
         })
 
 })
@@ -334,11 +337,13 @@ router.delete('/destroy-account', (req, res, next) => {
                 res.send(new ResponseSuccess('', '事务执行成功'))
             })
             .catch(err => {
-                res.send(new ResponseError(err, 'transaction.commit: 事务执行失败，已回滚'))
+                console.error(err);
+                res.send(new ResponseError(err.message, 'transaction.commit: 事务执行失败，已回滚'))
             })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('null', errInfo))
+            console.error(errInfo);
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 

@@ -19,72 +19,67 @@ router.post('/upload', uploadLocal.single('file'), (req, res, next) => {
     const destPath = `${DEST_FOLDER}/${fileOriginalName}`
     utility
         .verifyAuthorization(req)
-        .then(userInfo => {
-            let connection = utility.getMysqlConnection(DB_NAME)
-            connection.beginTransaction(transactionError => {
-                if (transactionError){
-                    connection.rollback(rollbackError => {
-                        res.send(new ResponseError(rollbackError, 'beginTransaction: 事务执行失败，已回滚'))
-                    })
-                    connection.end()
-                } else {
-                    let timeNow = utility.dateFormatter(new Date())
-                    let sql = `insert into
-                                 ${TABLE_NAME}(path, name_original, description, date_create, type, size, uid) 
-                                values ('${destPath}', '${fileOriginalName}', '${req.body.note}', '${timeNow}', '${req.file.mimetype}', ${req.file.size}, ${userInfo.uid})`
+        .then(async userInfo => {
+            let timeNow = utility.dateToString(new Date())
+            let id;
+            try
+            {
+                id = await utility.knex(TABLE_NAME).insert({
+                    path:destPath,
+                    name_original: fileOriginalName,
+                    description: req.body.note,
+                    date_create: timeNow,
+                    type: req.file.mimetype,
+                    size: req.file.size,
+                    uid: userInfo.uid
+                }).returning('id');
+            }
+            catch(e)
+            {
+                console.error(e)
+                res.send(new ResponseSuccess('', 'error'))
+                return;
+            }
 
-                    connection.query(sql, [], (queryErr,result) => {
-                        if (queryErr){
-                            connection.rollback(err => {
-                                res.send(new ResponseError(queryErr, 'query: sql 事务执行失败，已回滚'))
-                                connection.end()
+            if (typeof id[0] == 'number') { // mysql
+                id = id[0];
+            }
+            else
+            {
+                id = id[0].id;
+            }
+            fs.copyFile(
+                req.file.path,
+                `${destPath}`,
+                fs.constants.COPYFILE_EXCL,
+                copyFileError => {
+                    if (copyFileError) {
+                        console.error(copyFileError)
+                        utility.knex(TABLE_NAME).del().where('id', id).then(count => {
+                            fs.rm(req.file.path, deleteErr => {
+                                console.log('delete temp file ' + req.file.path)
                             })
-                        } else {
-                            fs.copyFile(
-                                req.file.path,
-                                `../${destPath}`,
-                                fs.constants.COPYFILE_EXCL,
-                                (copyFileError => {
-                                    if (copyFileError) {
-                                        connection.rollback(rollbackError => {
-                                            fs.rm(req.file.path, deleteErr => {})
-                                            if (copyFileError.code === 'EEXIST'){
-                                                res.send(new ResponseError('', '文件已存在'))
-                                            } else {
-                                                res.send(new ResponseError(copyFileError, '上传失败'))
-                                            }
-                                            connection.end()
-                                        })
-
-                                    } else {
-                                        fs.rm(req.file.path, deleteErr => {
-                                            if (deleteErr){
-                                                res.send(new ResponseError(deleteErr, '服务器临时文件删除失败'))
-                                                connection.end()
-                                            } else {
-                                                connection.commit(commitError => {
-                                                    if (commitError){
-                                                        connection.rollback(rollbackError => {
-                                                            res.send(new ResponseError(rollbackError, 'transaction.commit: 事务执行失败，已回滚'))
-                                                            connection.end()
-                                                        })
-                                                    } else {
-                                                        connection.end()
-                                                        res.send(new ResponseSuccess('', '上传成功'))
-                                                    }
-                                                })
-                                            }
-                                        })
-                                    }
-                                }))
-                        }
-                    })
-
-                }
-
-            })
+                            if (copyFileError.code === 'EEXIST'){
+                                res.send(new ResponseError('', '文件已存在'))
+                            } else {
+                                res.send(new ResponseError(copyFileError.message, '上传失败'))
+                            }
+                        })
+                    } else {
+                        fs.rm(req.file.path, deleteErr => {
+                            if (deleteErr) {
+                                console.error(deleteErr);
+                                utility.knex(TABLE_NAME).del().where('id', id).then(count => {})
+                                res.send(new ResponseError(deleteErr.message, '服务器临时文件删除失败'))
+                            } else {
+                                res.send(new ResponseSuccess('', '上传成功'))
+                            }
+                        })
+                    }
+                })
         })
         .catch(errInfo => {
+            console.error(errInfo)
             res.send(new ResponseError(errInfo, '无权操作'))
         })
 })
@@ -94,10 +89,9 @@ router.post('/modify', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            utility
-                .getDataFromDB( DB_NAME, [` update ${TABLE_NAME} set description = '${req.body.description}' WHERE id='${req.body.fileId}' and uid='${userInfo.uid}'`])
-                .then(data => {
-                    if (data.affectedRows > 0) {
+            utility.knex(TABLE_NAME).update('description', req.body.description).where('id', req.body.fileId).andWhere('uid', userInfo.uid)
+                .then(count => {
+                    if (count > 0) {
                         utility.updateUserLastLoginTime(userInfo.uid)
                         res.send(new ResponseSuccess('', '修改成功'))
                     } else {
@@ -105,11 +99,13 @@ router.post('/modify', (req, res, next) => {
                     }
                 })
                 .catch(err => {
-                    res.send(new ResponseError(err,))
+                    console.error(err);
+                    res.send(new ResponseError(err.message,'error'))
                 })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.error(errInfo)
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
@@ -119,34 +115,31 @@ router.delete('/delete', (req, res, next) => {
     utility
         .verifyAuthorization(req)
         .then(userInfo => {
-            utility.getDataFromDB(DB_NAME, [`select * from ${TABLE_NAME} where id='${req.body.fileId}'`], true)
-                .then(fileInfo => {
-                    utility.getDataFromDB( DB_NAME, [` DELETE from ${TABLE_NAME} WHERE id='${req.body.fileId}' and uid='${userInfo.uid}' `])
-                        .then(data => {
-                            if (data.affectedRows > 0) {
-                                utility.updateUserLastLoginTime(userInfo.uid)
-                                fs.rm(`../${fileInfo.path}`, {force: true}, errDeleteFile => {
-                                    if (errDeleteFile){
-                                        res.send(new ResponseError(errDeleteFile, '删除失败'))
-                                    } else {
-                                        res.send(new ResponseSuccess('', '删除成功'))
-                                    }
-                                })
-                            } else {
+            utility.knex(TABLE_NAME).del().where('id', req.body.fileId).andWhere('uid', userInfo.uid).returning('path')
+                .then(delFile => {
+                    if (delFile.length > 0) {
+                        delFile = delFile[0];
+                        utility.updateUserLastLoginTime(userInfo.uid)
+                        fs.rm(`../${delFile.path}`, {force: true}, errDeleteFile => {
+                            if (errDeleteFile){
+                                console.error(errDeleteFile)
                                 res.send(new ResponseError('', '删除失败'))
+                            } else {
+                                res.send(new ResponseSuccess('', '删除成功'))
                             }
                         })
-                        .catch(err => {
-                            res.send(new ResponseError(err,))
-                        })
+                    } else {
+                        res.send(new ResponseError('', '删除失败'))
+                    }
                 })
-                .catch(errQuery => {
-                    res.send(new ResponseError('', errQuery))
+                .catch(err => {
+                    console.error(err)
+                    res.send(new ResponseError('','error'))
                 })
-
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.error(errInfo)
+            res.send(new ResponseError('', 'error'))
         })
 })
 
@@ -155,41 +148,20 @@ router.get('/list', (req, res, next) => {
         .verifyAuthorization(req)
         .then(userInfo => {
             let startPoint = (req.query.pageNo - 1) * req.query.pageSize // 文件记录起点
-            let sqlArray = []
-            sqlArray.push(`SELECT *from ${TABLE_NAME} where uid='${userInfo.uid}'`)
-            // keywords
-            if (req.query.keywords){
-                let keywords = JSON.parse(req.query.keywords).map(item => utility.unicodeEncode(item))
-                console.log(keywords)
-                if (keywords.length > 0){
-                    let keywordStrArray = keywords.map(keyword => `( description like '%${keyword}%' ESCAPE '/' ` )
-                    sqlArray.push(' and ' + keywordStrArray.join(' and ')) // 在每个 categoryString 中间添加 'or'
-                }
-            }
+            let query = utility.knex(TABLE_NAME).select().where('uid', userInfo.uid).offset(startPoint).limit(req.query.pageSize);
 
-
-            // date range
-            if (req.query.dateFilter){
-                let year = req.query.dateFilter.substring(0,4)
-                let month = req.query.dateFilter.substring(4,6)
-                sqlArray.push(` and  YEAR(date)='${year}' AND MONTH(date)='${month}'`)
-            }
-
-            sqlArray.push(` order by date_create desc
-                  limit ${startPoint}, ${req.query.pageSize}`)
-
-            utility
-                .getDataFromDB( DB_NAME, sqlArray)
-                .then(data => {
-                    utility.updateUserLastLoginTime(userInfo.uid)
-                    res.send(new ResponseSuccess(data, '请求成功'))
-                })
-                .catch(err => {
-                    res.send(new ResponseError(err, err.message))
-                })
+            query.then(data => {
+                utility.updateUserLastLoginTime(userInfo.uid)
+                res.send(new ResponseSuccess(data, '请求成功'))
+            })
+            .catch(err => {
+                console.error(err)
+                res.send(new ResponseError(err.message, 'error'))
+            })
         })
         .catch(errInfo => {
-            res.send(new ResponseError('', errInfo))
+            console.error(errInfo)
+            res.send(new ResponseError(errInfo.message, 'error'))
         })
 })
 
