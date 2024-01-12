@@ -128,7 +128,7 @@ router.get('/year', (req, res, next) => {
                  res.send(new ResponseSuccess(response))
              })
              .catch(err => {
-                console.log(errInfo);
+                console.log(err);
                 res.send(new ResponseError(err.message, 'error'))
              })
      })

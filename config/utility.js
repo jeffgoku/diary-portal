@@ -229,6 +229,39 @@ async function copyTable(k, tableName)
 		for(let i = 0; i<c; i += kPageSize)
 		{
 			let data = await knex(tableName).select().limit(kPageSize).offset(i);
+            switch(tableName)
+            {
+                case 'users':
+                    data.forEach(row => {
+                        row.register_time = dateToString(row.register_time);
+                        row.last_visit_time = dateToString(row.last_visit_time);
+                    });
+                    break;
+                case 'diary_category':
+                    data.forEach(row => {
+                        row.date_init = dateToString(row.date_init);
+                    });
+                    break;
+                case 'file_manager':
+                    data.forEach(row => {
+                        row.date_create = dateToString(row.date_create);
+                    });
+                    break;
+                case 'invitations':
+                    data.forEach(row => {
+                        row.date_create = dateToString(row.date_create);
+                        row.date_register = dateToString(row.date_register);
+                    });
+                    break;
+                case 'diaries':
+                    data.forEach(row => {
+                        row.date = dateToString(row.date);
+                        row.date_create = dateToString(row.date_create);
+                        row.date_modify = dateToString(row.date_modify);
+                    });
+                    break;
+            }
+
 			await k(tableName).insert(data);
 		}
 	}
@@ -332,6 +365,30 @@ function dateFormatter(date, formatString) {
     return formatString
 }
 
+function dateToString(date) {
+    if (!date)
+    {
+        return '';
+    }
+    let ystr = ''+date.getFullYear();
+    let val = date.getMonth()+1;
+    let mstr = val<10 ? '0'+val : ''+val;
+    
+    val = date.getDate();
+    let dstr = val<10 ? '0'+val : ''+val;
+
+    val = date.getHours();
+    let hstr = val<10 ? '0'+val : ''+val;
+
+    val = date.getMinutes();
+    let mistr = val<10 ? '0'+val : ''+val;
+
+    val = date.getSeconds();
+    let sstr = val<10 ? '0'+val : ''+val;
+
+    return `${ystr}-${mstr}-${dstr} ${hstr}:${mistr}:${sstr}`;
+}
+
 // unicode -> text
 function unicodeEncode(str){
     if(!str)return '';
@@ -428,5 +485,6 @@ module.exports = {
     verifyAuthorization,
     // Bill
     processBillOfDay, formatMoney,
-    ym_func, y_func, m_func, db_type
+    ym_func, y_func, m_func, db_type,
+    dateToString,
 }
