@@ -7,21 +7,21 @@ const multer = require('multer')
 const {adminCount} = require("../../config/configProject");
 const fs = require('fs')
 
-const DB_NAME = 'diary' // 数据库名
 const TABLE_NAME = 'file_manager' // 数据库名
 const TEMP_FOLDER = 'temp' // 临时文件存放文件夹
 const DEST_FOLDER = 'upload' // 临时文件存放文件夹
 const uploadLocal = multer({dest: TEMP_FOLDER}) // 文件存储在服务器的什么位置
-const storage = multer.memoryStorage()
 
 router.post('/upload', uploadLocal.single('file'), (req, res, next) => {
-    let fileOriginalName = Buffer.from(req.file.originalname, 'latin1').toString('utf-8');
-    const destPath = `${DEST_FOLDER}/${fileOriginalName}`
     utility
         .verifyAuthorization(req)
         .then(async userInfo => {
             let timeNow = utility.dateToString(new Date())
             let id;
+
+			let fileOriginalName = Buffer.from(req.file.originalname, 'latin1').toString('utf-8');
+			const destPath = `${DEST_FOLDER}/${fileOriginalName}`
+
             try
             {
                 id = await utility.knex(TABLE_NAME).insert({
@@ -48,33 +48,22 @@ router.post('/upload', uploadLocal.single('file'), (req, res, next) => {
             {
                 id = id[0].id;
             }
-            fs.copyFile(
+            fs.rename(
                 req.file.path,
-                `${destPath}`,
-                fs.constants.COPYFILE_EXCL,
-                copyFileError => {
-                    if (copyFileError) {
-                        console.error(copyFileError)
-                        utility.knex(TABLE_NAME).del().where('id', id).then(count => {
-                            fs.rm(req.file.path, deleteErr => {
-                                console.log('delete temp file ' + req.file.path)
-                            })
-                            if (copyFileError.code === 'EEXIST'){
-                                res.send(new ResponseError('', '文件已存在'))
-                            } else {
-                                res.send(new ResponseError(copyFileError.message, '上传失败'))
-                            }
-                        })
+                destPath,
+                err => {
+                    if (err) {
+                        utility.knex(TABLE_NAME).del().where('id', id).catch(e => {
+							console.error(e);
+						});
+						if(fs.existsSync(req.file.path))
+						{
+							fs.rmSync(req.file.path);
+						}
+                        console.error(err)
+						res.send(new ResponseError('', 'upload failed!'))
                     } else {
-                        fs.rm(req.file.path, deleteErr => {
-                            if (deleteErr) {
-                                console.error(deleteErr);
-                                utility.knex(TABLE_NAME).del().where('id', id).then(count => {})
-                                res.send(new ResponseError(deleteErr.message, '服务器临时文件删除失败'))
-                            } else {
-                                res.send(new ResponseSuccess('', '上传成功'))
-                            }
-                        })
+						res.send(new ResponseSuccess('', '上传成功'))
                     }
                 })
         })
@@ -120,7 +109,7 @@ router.delete('/delete', (req, res, next) => {
                     if (delFile.length > 0) {
                         delFile = delFile[0];
                         utility.updateUserLastLoginTime(userInfo.uid)
-                        fs.rm(`../${delFile.path}`, {force: true}, errDeleteFile => {
+                        fs.rm(delFile.path, {force: true}, errDeleteFile => {
                             if (errDeleteFile){
                                 console.error(errDeleteFile)
                                 res.send(new ResponseError('', '删除失败'))
