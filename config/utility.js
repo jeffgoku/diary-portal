@@ -355,11 +355,11 @@ function dateFormatter(date, formatString) {
         "S": date.getMilliseconds()                     // 毫秒
     }
     if (/(y+)/.test(formatString)) {
-        formatString = formatString.replace(RegExp.$1, (date.getFullYear() + "").substr(4 - RegExp.$1.length))
+        formatString = formatString.replace(RegExp.$1, (date.getFullYear() + "").substring(4 - RegExp.$1.length))
     }
     for (const section in dateRegArray) {
         if (new RegExp("(" + section + ")").test(formatString)) {
-            formatString = formatString.replace(RegExp.$1, (RegExp.$1.length === 1) ? (dateRegArray[section]) : (("00" + dateRegArray[section]).substr(("" + dateRegArray[section]).length)))
+            formatString = formatString.replace(RegExp.$1, (RegExp.$1.length === 1) ? (dateRegArray[section]) : (("00" + dateRegArray[section]).substring(("" + dateRegArray[section]).length)))
         }
     }
     return formatString
@@ -449,8 +449,17 @@ function processBillOfDay(diaryObj, filterKeywords = []){
         sumOutput: 0
     }
     strArray.forEach(item => {
-        let itemInfos = item.split(' ')
-        let price = Number(itemInfos[1]) || 0 // 避免账单填写出错的情况
+        item = item.trim()
+        let idx = item.lastIndexOf(' ')
+        let price = 0
+        if(idx >= 0)
+        {
+            price = Number(item.substring(idx+1)) || 0
+        }
+        else
+        {
+            idx = item.length
+        }
         if (price < 0) {
             response.sumOutput += price
         } else {
@@ -458,8 +467,11 @@ function processBillOfDay(diaryObj, filterKeywords = []){
         }
         response.sum += price
 
+        while(item[idx] == ' ')
+            idx--;
+
         response.items.push({
-            item: itemInfos[0],
+            item: item.substring(0, idx+1),
             price: price
         })
     })
