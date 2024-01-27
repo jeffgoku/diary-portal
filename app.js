@@ -4,6 +4,7 @@ const path = require('path')
 const logger = require('morgan')
 const cors = require('cors')
 
+const { verifyAuthorization } = require('./middlewares/auth')
 const utility = require('./config/utility')
 const { unlinkSync } = require('node:fs')
 
@@ -34,12 +35,12 @@ app.use('/init'       , init)
 app.use('/user'       , usersRouter)
 
 // 邀请码
-let invitationRouter     = require('./routes/user/invitation')
-app.use('/invitation'       , invitationRouter)
+let invitationRouter  = require('./routes/user/invitation')
+app.use('/invitation' , verifyAuthorization, invitationRouter)
 
 // 统计
 let diaryStatisticRouter = require('./routes/statistic/statistic')
-app.use('/statistic'  , diaryStatisticRouter)
+app.use('/statistic'  , verifyAuthorization, diaryStatisticRouter)
 
 
 // 日记相关
@@ -47,15 +48,15 @@ let routerDiary          = require('./routes/diary/diary')
 let routerDiaryCategory  = require('./routes/diary/diary-category')
 let routerBankCard       = require('./routes/diary/bankCard')
 let routerBill           = require('./routes/diary/bill')
-app.use('/diary'          , routerDiary)
-app.use('/diary-category' , routerDiaryCategory)
-app.use('/bank-card'      , routerBankCard)      // 银行卡列表
-app.use('/bill'           , routerBill)          // 账单
+app.use('/diary'          , verifyAuthorization, routerDiary)
+app.use('/diary-category' , verifyAuthorization, routerDiaryCategory)
+app.use('/bank-card'      , verifyAuthorization, routerBankCard)      // 银行卡列表
+app.use('/bill'           , verifyAuthorization, routerBill)          // 账单
 
 
 // 图片、文件操作
 let routerFileManager = require('./routes/file/fileManager')
-app.use('/file-manager', routerFileManager)
+app.use('/file-manager', verifyAuthorization, routerFileManager)
 
 /*
 app.get('/sqliteDB', async (req, resp) => {

@@ -4,9 +4,11 @@ const utility = require("../../config/utility");
 const ResponseSuccess = require("../../response/ResponseSuccess");
 const ResponseError = require("../../response/ResponseError");
 const router = express.Router()
-const bcrypt = require('bcrypt')
 
+const { verifyAuthorization } = require('../../middlewares/auth')
+const cryptoUtils = require('../../config/cryptoUtils')
 
+const jwt = require('jsonwebtoken')
 
 
 /* GET users listing. */
@@ -42,46 +44,43 @@ function registerUser(req, res){
                 return res.send(new ResponseError('', '邮箱或用户名已被注册'))
             } else {
                 let timeNow = utility.dateFormatter(new Date())
-                // 明文密码通过 bcrypt 加密，对比密码也是通过  bcrypt
-                bcrypt.hash(req.body.password, 10, (err, encryptPassword) => {
-                    // 注册的用户默认为普通用户
-                    utility.knex('users').insert({
-                            email:req.body.email,
-                            nickname:req.body.nickname||'',
-                            username: req.body.username ||'',
-                            password: encryptPassword,
-                            register_time: timeNow,
-                            last_visit_time: timeNow,
-                            comment: req.body.comment || '',
-                            wx: req.body.wx||'',
-                            phone: req.body.phone||'',
-                            homepage: req.body.homepage||'',
-                            count_diary: 0,
-                            sync_count: 0,
-                            group_id:2}).returning('uid')
-                        .then( uid => {
-                            if (typeof uid[0] == 'number')
-                            {
-                                uid = uid[0];
-                            }
-                            else
-                            {
-                                uid = uid[0].uid
-                            }
-                            utility.knex('invitations').update({binding_uid: uid, date_register: timeNow}).where('id', req.body.invitationCode)
-                                .then(resInvitation => {
-                                    res.send(new ResponseSuccess('', '注册成功'))
-                                })
-                                .catch(err => {
-                                    console.log('update invitation err : ' + err);
-                                    res.send(new ResponseError(err, '注册成功，邀请码信息更新失败'))
-                                })
-                        })
-                        .catch(err => {
-                            res.send(new ResponseError(err, '注册失败'))
-                        })
-                })
-
+                let encryptPassword = cryptoUtils.hashPassword(req.body.password)
+                // 注册的用户默认为普通用户
+                utility.knex('users').insert({
+                        email:req.body.email,
+                        nickname:req.body.nickname||'',
+                        username: req.body.username ||'',
+                        password: encryptPassword,
+                        register_time: timeNow,
+                        last_visit_time: timeNow,
+                        comment: req.body.comment || '',
+                        wx: req.body.wx||'',
+                        phone: req.body.phone||'',
+                        homepage: req.body.homepage||'',
+                        count_diary: 0,
+                        sync_count: 0,
+                        group_id:2}).returning('uid')
+                    .then( uid => {
+                        if (typeof uid[0] == 'number')
+                        {
+                            uid = uid[0];
+                        }
+                        else
+                        {
+                            uid = uid[0].uid
+                        }
+                        utility.knex('invitations').update({binding_uid: uid, date_register: timeNow}).where('id', req.body.invitationCode)
+                            .then(resInvitation => {
+                                res.send(new ResponseSuccess('', '注册成功'))
+                            })
+                            .catch(err => {
+                                console.log('update invitation err : ' + err);
+                                res.send(new ResponseError(err, '注册成功，邀请码信息更新失败'))
+                            })
+                    })
+                    .catch(err => {
+                        res.send(new ResponseError(err, '注册失败'))
+                    })
             }
         })
         .catch(errEmailExist => {
@@ -118,21 +117,6 @@ router.get('/detail', (req, res, next) => {
                         if (Number(userInfo.uid) === data.uid){
                             // 记录最后访问时间
                             utility.updateUserLastLoginTime(userInfo.uid)
-                            /*                            // TODO:过滤可见信息 自己看，管理员看，其它用户看
-                                                        if (data.is_show_wx){
-                                                            data.wx = ''
-                                                        }
-                                                        if (data.is_show_car){
-                                                            data.car = ''
-                                                            data.car_desc = ''
-                                                            data.car_plate = ''
-                                                        }
-                                                        if (data.is_show_gaode){
-                                                            data.gaode = ''
-                                                        }
-                                                        if (data.is_show_homepage){
-                                                            data.homepage = ''
-                                                        }*/
                             res.send(new ResponseSuccess(data))
                         } else {
                             res.send(new ResponseError('','当前用户无权查看该 QR ：请求用户 ID 与 QR 归属不匹配'))
@@ -149,7 +133,7 @@ router.get('/detail', (req, res, next) => {
 })
 
 
-router.get('/avatar', (req, res, next) => {
+router.get('/avatar', verifyAuthorization, (req, res, next) => {
     utility.knex('users').select('avatar').where('email', req.query.email)
         .then(data => {
             res.send(new ResponseSuccess(data))
@@ -201,32 +185,19 @@ router.put('/set-profile', (req, res, next) => {
 })
 
 
-router.put('/modify', (req, res, next) => {
-
-    // 1. 验证用户信息是否正确
-    utility
-        .verifyAuthorization(req)
-        .then(userInfo => {
-            if (userInfo.group_id === 1) {
-                operateUserInfo(req, res, userInfo)
-            } else {
-                if (userInfo.uid !== req.body.uid){
-                    res.send(new ResponseError('', '你无权操作该用户信息'))
-                } else {
-                    operateUserInfo(req, res, userInfo)
-                }
-            }
-        })
-        .catch(err => {
-            res.send(new ResponseError(err, '无权操作'))
-        })
+router.put('/modify', verifyAuthorization, (req, res, next) => {
+    if (req.user.group_id == 1 || req.user.uid == req.body.uid) {
+        operateUserInfo(req, res)
+    } else {
+        res.send(new ResponseError('', '你无权操作该用户信息'))
+    }
 })
 
-function operateUserInfo(req, res, userInfo){
+function operateUserInfo(req, res){
     utility.knex('users').update({email:req.body.email, nickname: req.body.nickname, username: req.body.username, comment: req.body.comment||'',
             wx:req.body.wx||'', phone: req.body.phone||'', homepage:req.body.homepage||'', gaode:req.body.gaode||'', group_id:req.body.group_id}).where('uid', req.body.uid)
         .then(data => {
-            utility.updateUserLastLoginTime(userInfo.uid)
+            utility.updateUserLastLoginTime(req.body.uid)
             res.send(new ResponseSuccess(data, '修改成功'))
         })
         .catch(err => {
@@ -234,31 +205,23 @@ function operateUserInfo(req, res, userInfo){
         })
 }
 
-router.delete('/delete', (req, res, next) => {
-    // 1. 验证用户信息是否正确
-    utility
-        .verifyAuthorization(req)
-        .then(userInfo => {
-            if (userInfo.group_id === 1){
-                utility.knex('users').del().where('uid', req.body.uid)
-                    .then(affectedRows => {
-                        if (affectedRows > 0) {
-                            utility.updateUserLastLoginTime(req.body.email)
-                            res.send(new ResponseSuccess('', '删除成功'))
-                        } else {
-                            res.send(new ResponseError('', '删除失败'))
-                        }
-                    })
-                    .catch(err => {
-                        res.send(new ResponseError(err,))
-                    })
-            } else {
-                res.send(new ResponseError('', '无权操作'))
-            }
-        })
-        .catch(err => {
-            res.send(new ResponseError(err, '无权操作'))
-        })
+router.delete('/delete', verifyAuthorization, (req, res, next) => {
+    if (req.user.group_id == 1) {
+        utility.knex('users').del().where('uid', req.body.uid)
+            .then(affectedRows => {
+                if (affectedRows > 0) {
+                    utility.updateUserLastLoginTime(req.body.email)
+                    res.send(new ResponseSuccess('', '删除成功'))
+                } else {
+                    res.send(new ResponseError('', '删除失败'))
+                }
+            })
+            .catch(err => {
+                res.send(new ResponseError(err,))
+            })
+    } else {
+        res.send(new ResponseError('', '无权操作'))
+    }
 })
 
 router.post('/login', (req, res, next) => {
@@ -266,19 +229,31 @@ router.post('/login', (req, res, next) => {
         .then(data => {
             if (data.length > 0) {
                 user = data[0]
-                bcrypt.compare(req.body.password, user.password, function(err, isPasswordMatch) {
-                    if (isPasswordMatch){
-                        utility.updateUserLastLoginTime(user.uid)
-                        res.send(new ResponseSuccess(user,'登录成功'))
-                    } else {
-                        console.log(user.password);
-                        res.send(new ResponseError('','用户名或密码错误'))
+                console.log('handle login')
+
+                if(cryptoUtils.comparePassword(req.body.password, user.password))
+                {
+                    utility.updateUserLastLoginTime(user.uid)
+                    let token = jwt.sign({uid: user.uid, ip: req.ip, group_id: user.group_id}, cryptoUtils.getJwtSecretKey(), {expiresIn: '1d'})
+                    let user = {nickname: user.nickname,
+                        uid: user.uid,
+                        email: user.email,
+                        phone: user.phone,
+                        avatar: user.avatar,
+                        token,
+                        group_id: user.group_id,
+                        city: user.city,
+                        geolocation: user.geolocation
                     }
-                })
+                    res.send(new ResponseSuccess(user, '登录成功'))
+                }
+                else
+                {
+                    res.send(new ResponseError('','用户名或密码错误'))
+                }
             } else {
                 res.send(new ResponseError('', '无此用户'))
             }
-
         })
         .catch(err => {
             res.send(new ResponseError('', err.message))
@@ -286,65 +261,49 @@ router.post('/login', (req, res, next) => {
 })
 
 // 修改密码
-router.put('/change-password', (req, res, next) => {
+router.put('/change-password', verifyAuthorization,  (req, res, next) => {
     if (!req.body.password){
         res.send(new ResponseError('', '参数错误：password 未定义'))
         return
     }
 
-    utility
-        .verifyAuthorization(req)
-        .then(userInfo => {
-            if (userInfo.email === 'test@163.com'){
-                res.send(new ResponseError('', '演示帐户密码不允许修改'))
-                return
-            }
-            bcrypt.hash(req.body.password, 10, (err, encryptPasswordNew) => {
-                utility.knex('users').update('password', encryptPasswordNew).where('email', userInfo.email)
-                    .then(count => {
-                        utility.updateUserLastLoginTime(userInfo.uid)
-                        res.send(new ResponseSuccess('', '修改密码成功'))
-                    })
-                    .catch(err => {
-                        console.error(err)
-                        res.send(new ResponseError(err.message, '修改密码失败'))
-                    })
+    if (userInfo.email === 'test@163.com'){
+        res.send(new ResponseError('', '演示帐户密码不允许修改'))
+        return
+    }
+    bcrypt.hash(req.body.password, 10, (err, encryptPasswordNew) => {
+        utility.knex('users').update('password', encryptPasswordNew).where('email', userInfo.email)
+            .then(count => {
+                utility.updateUserLastLoginTime(userInfo.uid)
+                res.send(new ResponseSuccess('', '修改密码成功'))
             })
-        })
-        .catch(err => {
-            console.error(err)
-            res.send(new ResponseError(err.message, '无权操作'))
-        })
-
+            .catch(err => {
+                console.error(err)
+                res.send(new ResponseError(err.message, '修改密码失败'))
+            })
+    })
 })
 
 // 注销帐号
-router.delete('/destroy-account', (req, res, next) => {
-    utility
-        .verifyAuthorization(req)
-        .then(userInfo => {
-            // 演示帐户时不允许执行注销操作
-            if (userInfo.email === 'test@163.com'){
-                res.send(new ResponseError('', '演示帐户不允许执行此操作'))
-                return
-            }
-            utility.knex.transaction(async trx => {
-                await trx.del().table('diaries').where('uid', userInfo.uid)
-                await trx.del().table('invitations').where('uid', userInfo.uid)
-                await trx.del().table('users').where('uid', userInfo.uid)
-            })
-            .then(() => {
-                res.send(new ResponseSuccess('', '事务执行成功'))
-            })
-            .catch(err => {
-                console.error(err);
-                res.send(new ResponseError(err.message, 'transaction.commit: 事务执行失败，已回滚'))
-            })
-        })
-        .catch(errInfo => {
-            console.error(errInfo);
-            res.send(new ResponseError(errInfo.message, 'error'))
-        })
+router.delete('/destroy-account', verifyAuthorization, (req, res, next) => {
+    // 演示帐户时不允许执行注销操作
+    if (userInfo.email === 'test@163.com'){
+        res.send(new ResponseError('', '演示帐户不允许执行此操作'))
+        return
+    }
+    utility.knex.transaction(async trx => {
+        let uid = req.user.uid
+        await trx.del().table('diaries').where('uid', uid)
+        await trx.del().table('invitations').where('uid', uid)
+        await trx.del().table('users').where('uid', uid)
+    })
+    .then(() => {
+        res.send(new ResponseSuccess('', '事务执行成功'))
+    })
+    .catch(err => {
+        console.error(err);
+        res.send(new ResponseError(err.message, 'transaction.commit: 事务执行失败，已回滚'))
+    })
 })
 
 module.exports = router

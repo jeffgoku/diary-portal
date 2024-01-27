@@ -1,5 +1,5 @@
-const { existsSync, unlinkSync } = require('node:fs')
-const util = require('util')
+const fs = require('node:fs')
+const crypto = require('node:crypto')
 
 const configDatabase = require('./configDatabase')
 const configProject = require('./configProject')
@@ -290,9 +290,9 @@ async function toDB(k)
 
 async function toSqliteDB(dbFilename)
 {
-	if (existsSync(dbFilename))
+	if (fs.existsSync(dbFilename))
 	{
-		unlinkSync(dbFilename);
+		fs.unlinkSync(dbFilename);
 	}
 
 	let k = require('knex')({
@@ -316,31 +316,6 @@ async function toSqliteDB(dbFilename)
     }
 }
 
-
-// 验证用户是否有权限
-function verifyAuthorization(req){
-    let token = req.get('Diary-Token') || req.query.token
-    let uid = req.get('Diary-Uid')
-    return new Promise((resolve, reject) => {
-        if (!token){
-            reject ('无 token')
-        } else if (!uid){
-            reject ('程序已升级，请关闭所有相关窗口，再重新访问该网站')
-        } else {
-            knex('users').select().where('password', token).andWhere('uid', uid)
-                .then(userInfo => {
-                    if (userInfo?.length > 0){
-                        resolve(userInfo[0]) // 如果查询成功，返回 用户id
-                    } else {
-                        reject('身份验证失败：查无此人')
-                    }
-                })
-                .catch(err => {
-                    reject('mysql: 获取身份信息错误')
-                })
-        }
-    });
-}
 
 // 格式化时间，输出字符串
 function dateFormatter(date, formatString) {
@@ -487,14 +462,12 @@ function formatMoney(number){
     return Number(number.toFixed(2))
 }
 
-
 module.exports = {
     knex,
     createDB, createTables, createInitData,
     toSqliteDB,
     dateFormatter, updateUserLastLoginTime,
     unicodeEncode, unicodeDecode,
-    verifyAuthorization,
     // Bill
     processBillOfDay, formatMoney,
     ym_func, y_func, m_func, db_type,
