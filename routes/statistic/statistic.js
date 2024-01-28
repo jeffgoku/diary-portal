@@ -6,7 +6,7 @@ const ResponseError = require("../../response/ResponseError");
 const configProject = require("../../config/configProject")
 
 // 统计数据，后台用的
-router.get('/', (req, res, next) => {
+router.get('/', (req, res) => {
     let query;
     if (req.user.group_id == 1) {
         query = utility.knex().select(utility.knex("diaries").select().count().as('count_diary')
@@ -26,12 +26,12 @@ router.get('/', (req, res, next) => {
         })
         .catch(errInfo => {
             console.log(errInfo);
-            res.send(new ResponseError(errInfo.message, 'error'))
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
 // 日记类别数据
-router.get('/category', (req, res, next) => {
+router.get('/category', (req, res) => {
     // 1. get categories list
     utility.knex('diary_category').select().orderBy('sort_id')
         .then(categoryListData => {
@@ -56,12 +56,13 @@ router.get('/category', (req, res, next) => {
             }
         })
         .catch(errInfo => {
-            res.send(new ResponseError(errInfo.message, 'error'))
+            console.error(errInfo)
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
 // 年份月份数据
-router.get('/year', (req, res, next) => {
+router.get('/year', (req, res) => {
      let query = utility.knex('diaries').select(utility.knex.raw(`${utility.ym_func} as ym, count(*) as count`))
          .where('uid', req.user.uid).groupBy('ym').orderBy('ym')
 
@@ -115,7 +116,7 @@ router.get('/year', (req, res, next) => {
 })
 
 // 用户统计信息
-router.get('/users', (req, res, next) => {
+router.get('/users', (req, res) => {
     utility.knex('users').select('uid','last_visit_time', 'nickname', 'register_time', 'count_diary', 'sync_count')
         .where('count_diary', '>', 5).orWhere('sync_count', '>=', 5)
         .then(data => {
@@ -123,19 +124,19 @@ router.get('/users', (req, res, next) => {
         })
         .catch(err => {
             console.log(err);
-            res.send(new ResponseError(err.message, 'error'))
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
 // 气温统计
-router.get('/weather', (req, res, next) => {
+router.get('/weather', (req, res) => {
     utility.knex('diaries').select('temperature','temperature_outside', 'date').where('category', 'life').andWhere('uid', req.user.uid)
         .then(weatherData => {
             res.send(new ResponseSuccess(weatherData, '请求成功'))
         })
         .catch(err => {
             console.log(err)
-            res.send(new ResponseError(err.message, '数据库请求错误'))
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 

@@ -4,7 +4,6 @@ const utility = require('../../config/utility')
 const ResponseSuccess = require('../../response/ResponseSuccess')
 const ResponseError = require('../../response/ResponseError')
 const multer = require('multer')
-const {adminCount} = require("../../config/configProject");
 
 const fs = require('fs')
 
@@ -13,7 +12,7 @@ const TEMP_FOLDER = 'temp' // 临时文件存放文件夹
 const DEST_FOLDER = 'upload' // 临时文件存放文件夹
 const uploadLocal = multer({dest: TEMP_FOLDER}) // 文件存储在服务器的什么位置
 
-router.post('/upload', uploadLocal.single('file'), async (req, res, next) => {
+router.post('/upload', uploadLocal.single('file'), async (req, res) => {
     let timeNow = utility.dateToString(new Date())
     let id;
 
@@ -66,7 +65,7 @@ router.post('/upload', uploadLocal.single('file'), async (req, res, next) => {
         })
 })
 
-router.post('/modify', (req, res, next) => {
+router.post('/modify', (req, res) => {
     utility.knex(TABLE_NAME).update('description', req.body.description).where('id', req.body.fileId).andWhere('uid', req.user.uid)
         .then(count => {
             if (count > 0) {
@@ -78,12 +77,12 @@ router.post('/modify', (req, res, next) => {
         })
         .catch(err => {
             console.error(err);
-            res.send(new ResponseError(err.message,'error'))
+            res.send(new ResponseError(null,'fatal error'))
         })
 })
 
 // TODO: 用事务处理
-router.delete('/delete', (req, res, next) => {
+router.delete('/delete', (req, res) => {
     utility.knex(TABLE_NAME).del().where('id', req.body.fileId).andWhere('uid', req.user.uid).returning('path')
         .then(delFile => {
             if (delFile.length > 0) {
@@ -103,11 +102,11 @@ router.delete('/delete', (req, res, next) => {
         })
         .catch(err => {
             console.error(err)
-            res.send(new ResponseError('','error'))
+            res.send(new ResponseError(null,'fatal error'))
         })
 })
 
-router.get('/list', (req, res, next) => {
+router.get('/list', (req, res) => {
     let startPoint = (req.query.pageNo - 1) * req.query.pageSize // 文件记录起点
     let query = utility.knex(TABLE_NAME).select().where('uid', req.user.uid).offset(startPoint).limit(req.query.pageSize);
 
@@ -117,7 +116,7 @@ router.get('/list', (req, res, next) => {
     })
     .catch(err => {
         console.error(err)
-        res.send(new ResponseError(err.message, 'error'))
+        res.send(new ResponseError(null, 'fatal error'))
     })
 })
 

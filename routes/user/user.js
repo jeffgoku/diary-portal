@@ -12,7 +12,7 @@ const jwt = require('jsonwebtoken')
 
 
 /* GET users listing. */
-router.post('/register', (req, res, next) => {
+router.post('/register', (req, res) => {
     // TODO: 验证传过来的数据库必填项
     if (req.body.invitationCode === configProject.invitation){ // 万能全局邀请码
         registerUser(req, res)
@@ -31,7 +31,8 @@ router.post('/register', (req, res, next) => {
                 }
             })
             .catch(err => {
-                res.send(new ResponseError(err, '数据库请求出错'))
+                console.error(err)
+                res.send(new ResponseError(null, 'fatal error'))
             })
     }
 })
@@ -50,7 +51,7 @@ function registerUser(req, res){
                         email:req.body.email,
                         nickname:req.body.nickname||'',
                         username: req.body.username ||'',
-                        password: encryptPassword,
+                        password: encryptPassword.toString('base64'),
                         register_time: timeNow,
                         last_visit_time: timeNow,
                         comment: req.body.comment || '',
@@ -74,18 +75,19 @@ function registerUser(req, res){
                                 res.send(new ResponseSuccess('', '注册成功'))
                             })
                             .catch(err => {
-                                console.log('update invitation err : ' + err);
-                                res.send(new ResponseError(err, '注册成功，邀请码信息更新失败'))
+                                console.error(err);
+                                res.send(new ResponseError(null, 'fatal error'))
                             })
                     })
                     .catch(err => {
-                        res.send(new ResponseError(err, '注册失败'))
+                        console.error(err)
+                        res.send(new ResponseError(null, 'fatal error'))
                     })
             }
         })
         .catch(errEmailExist => {
-            console.log(errEmailExist)
-            res.send(new ResponseError(errEmailExist, '查询出错'))
+            console.error(errEmailExist)
+            res.send(new ResponseError(null, 'fatal error'))
         })
 }
 
@@ -94,10 +96,10 @@ function checkEmailOrUserNameExist(email, nickname){
     return utility.knex('users').select().where('email', email).orWhere('nickname', nickname).limit(1)
 }
 
-router.post('/list', (req, res, next) => {
+router.post('/list', (req, res) => {
 })
 
-router.get('/detail', (req, res, next) => {
+router.get('/detail', (req, res) => {
     utility.knex('qrs').select().where('hash', req.query.hash)
         .then(data => {
             // decode unicode
@@ -123,30 +125,32 @@ router.get('/detail', (req, res, next) => {
                         }
                     })
                     .catch(errInfo => {
-                        res.send(new ResponseError('', errInfo))
+                        console.error(errInfo)
+                        res.send(new ResponseError(null, 'fatal error'))
                     })
             }
         })
         .catch(err => {
-            res.send(new ResponseError(err, err.message))
+            console.error(err)
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
 
-router.get('/avatar', verifyAuthorization, (req, res, next) => {
+router.get('/avatar', verifyAuthorization, (req, res) => {
     utility.knex('users').select('avatar').where('email', req.query.email)
         .then(data => {
             res.send(new ResponseSuccess(data))
         })
         .catch(err => {
             console.error(err)
-            res.send(new ResponseError('', err.message))
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
 
 // 设置用户资料：昵称，avatar，手机号
-router.put('/set-profile', (req, res, next) => {
+router.put('/set-profile', (req, res) => {
     res.send(new ResponseError('not implement','not implement'))
     /*
     // 1. 验证用户信息是否正确
@@ -185,7 +189,7 @@ router.put('/set-profile', (req, res, next) => {
 })
 
 
-router.put('/modify', verifyAuthorization, (req, res, next) => {
+router.put('/modify', verifyAuthorization, (req, res) => {
     if (req.user.group_id == 1 || req.user.uid == req.body.uid) {
         operateUserInfo(req, res)
     } else {
@@ -201,11 +205,12 @@ function operateUserInfo(req, res){
             res.send(new ResponseSuccess(data, '修改成功'))
         })
         .catch(err => {
-            res.send(new ResponseError(err, '修改失败'))
+            console.error(err)
+            res.send(new ResponseError(null, 'fatal error'))
         })
 }
 
-router.delete('/delete', verifyAuthorization, (req, res, next) => {
+router.delete('/delete', verifyAuthorization, (req, res) => {
     if (req.user.group_id == 1) {
         utility.knex('users').del().where('uid', req.body.uid)
             .then(affectedRows => {
@@ -217,25 +222,25 @@ router.delete('/delete', verifyAuthorization, (req, res, next) => {
                 }
             })
             .catch(err => {
-                res.send(new ResponseError(err,))
+                console.error(err)
+                res.send(new ResponseError(null,'fatal error'))
             })
     } else {
         res.send(new ResponseError('', '无权操作'))
     }
 })
 
-router.post('/login', (req, res, next) => {
+router.post('/login', (req, res) => {
     utility.knex('users').select().where('email', req.body.email).limit(1)
         .then(data => {
             if (data.length > 0) {
-                user = data[0]
-                console.log('handle login')
+                let user = data[0]
 
                 if(cryptoUtils.comparePassword(req.body.password, user.password))
                 {
                     utility.updateUserLastLoginTime(user.uid)
-                    let token = jwt.sign({uid: user.uid, ip: req.ip, group_id: user.group_id}, cryptoUtils.getJwtSecretKey(), {expiresIn: '1d'})
-                    let user = {nickname: user.nickname,
+                    let token = jwt.sign({uid: user.uid, ip: req.ip, group_id: user.group_id, email: user.email}, cryptoUtils.getJwtSecretKey(), {expiresIn: '1d'})
+                    let ret = {nickname: user.nickname,
                         uid: user.uid,
                         email: user.email,
                         phone: user.phone,
@@ -245,7 +250,7 @@ router.post('/login', (req, res, next) => {
                         city: user.city,
                         geolocation: user.geolocation
                     }
-                    res.send(new ResponseSuccess(user, '登录成功'))
+                    res.send(new ResponseSuccess(ret, '登录成功'))
                 }
                 else
                 {
@@ -256,38 +261,38 @@ router.post('/login', (req, res, next) => {
             }
         })
         .catch(err => {
-            res.send(new ResponseError('', err.message))
+            console.error(err)
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
 // 修改密码
-router.put('/change-password', verifyAuthorization,  (req, res, next) => {
+router.put('/change-password', verifyAuthorization,  (req, res) => {
     if (!req.body.password){
         res.send(new ResponseError('', '参数错误：password 未定义'))
         return
     }
 
-    if (userInfo.email === 'test@163.com'){
+    if (req.user.email === 'test@163.com'){
         res.send(new ResponseError('', '演示帐户密码不允许修改'))
         return
     }
-    bcrypt.hash(req.body.password, 10, (err, encryptPasswordNew) => {
-        utility.knex('users').update('password', encryptPasswordNew).where('email', userInfo.email)
-            .then(count => {
-                utility.updateUserLastLoginTime(userInfo.uid)
-                res.send(new ResponseSuccess('', '修改密码成功'))
-            })
-            .catch(err => {
-                console.error(err)
-                res.send(new ResponseError(err.message, '修改密码失败'))
-            })
-    })
+    let encryptedPassword = cryptoUtils.hashPassword(req.body.password)
+    utility.knex('users').update('password', encryptedPassword).where('uid', req.user.uid)
+        .then(_count => {
+            utility.updateUserLastLoginTime(req.user.uid)
+            res.send(new ResponseSuccess('', '修改密码成功'))
+        })
+        .catch(err => {
+            console.error(err)
+            res.send(new ResponseError(null, 'fatal error'))
+        })
 })
 
 // 注销帐号
-router.delete('/destroy-account', verifyAuthorization, (req, res, next) => {
+router.delete('/destroy-account', verifyAuthorization, (req, res) => {
     // 演示帐户时不允许执行注销操作
-    if (userInfo.email === 'test@163.com'){
+    if (req.user.email === 'test@163.com'){
         res.send(new ResponseError('', '演示帐户不允许执行此操作'))
         return
     }
@@ -302,7 +307,7 @@ router.delete('/destroy-account', verifyAuthorization, (req, res, next) => {
     })
     .catch(err => {
         console.error(err);
-        res.send(new ResponseError(err.message, 'transaction.commit: 事务执行失败，已回滚'))
+        res.send(new ResponseError(null, 'fatal error'))
     })
 })
 

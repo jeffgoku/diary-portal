@@ -4,7 +4,7 @@ const utility = require('../../config/utility')
 const ResponseSuccess = require('../../response/ResponseSuccess')
 const ResponseError = require('../../response/ResponseError')
 
-router.get('/list', (req, res, next) => {
+router.get('/list', (req, res) => {
     let startPoint = (req.query.pageNo - 1) * req.query.pageSize // 日记起点
 
     let query = utility.knex('diaries').select().where('uid', req.user.uid)
@@ -71,11 +71,11 @@ router.get('/list', (req, res, next) => {
     })
     .catch(err => {
         console.log(err);
-        res.send(new ResponseError(err.message, 'error'))
+        res.send(new ResponseError(null, 'fatal error'))
     })
 })
 
-router.get('/export', (req, res, next) => {
+router.get('/export', (req, res) => {
     utility.knex('diaries').where('uid', req.user.uid)
         .then(data => {
             utility.updateUserLastLoginTime(req.user.uid)
@@ -92,13 +92,13 @@ router.get('/export', (req, res, next) => {
         })
         .catch(err => {
             console.log(err);
-            res.send(new ResponseError(err.message, 'error'))
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
 
 
-router.get('/temperature', (req, res, next) => {
+router.get('/temperature', (req, res) => {
     let query = utility.knex('diaries').select('date', 'temperature', 'temperature_outside')
         .where('uid', req.user.uid).andWhere('category','life')
         .orderBy('date', 'desc').limit(100)
@@ -120,11 +120,11 @@ router.get('/temperature', (req, res, next) => {
     })
     .catch(err => {
         console.log(err);
-        res.send(new ResponseError(err.message, 'error'))
+        res.send(new ResponseError(null, 'fatal error'))
     })
 })
 
-router.get('/detail', (req, res, next) => {
+router.get('/detail', (req, res) => {
     // 1. 先查询出日记结果
     utility.knex('diaries').select().where('id', req.query.diaryId)
         .then(dataDiary => {
@@ -164,11 +164,11 @@ router.get('/detail', (req, res, next) => {
         })
         .catch(err => {
             console.log(err);
-            res.send(new ResponseError(err.message,'error'))
+            res.send(new ResponseError(null,'fatal error'))
         })
 })
 
-router.post('/add', (req, res, next) => {
+router.post('/add', (req, res) => {
     // 1. 验证用户信息是否正确
     let parsedTitle = utility.unicodeEncode(req.body.title) // !
     parsedTitle = parsedTitle.replaceAll(`'`, `''`)
@@ -194,11 +194,11 @@ router.post('/add', (req, res, next) => {
         })
         .catch(err => {
             console.log(err)
-            res.send(new ResponseError('error', '添加失败'))
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
-router.put('/modify', (req, res, next) => {
+router.put('/modify', (req, res) => {
     let parsedTitle = utility.unicodeEncode(req.body.title) // !
     parsedTitle = parsedTitle.replaceAll(`'`, `''`)
     let parsedContent = utility.unicodeEncode(req.body.content) || ''
@@ -213,11 +213,11 @@ router.put('/modify', (req, res, next) => {
         })
         .catch(err => {
             console.log(err);
-            res.send(new ResponseError('error', '修改失败'))
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 
-router.delete('/delete', (req, res, next) => {
+router.delete('/delete', (req, res) => {
     utility.knex('diaries').del().where('id', req.body.diaryId).andWhere('uid', req.user.uid)
         .then(affectedRows => {
             if (affectedRows > 0) {
@@ -230,11 +230,11 @@ router.delete('/delete', (req, res, next) => {
         })
         .catch(err => {
             console.log(err)
-            res.send(new ResponseError('error','select user error'))
+            res.send(new ResponseError(null,'fatal error'))
         })
 })
 
-router.post('/clear', (req, res, next) => {
+router.post('/clear', (req, res) => {
     if (userInfo.email === 'test@163.com'){
         res.send(new ResponseError('', '演示帐户不允许执行此操作'))
         return
@@ -246,7 +246,7 @@ router.post('/clear', (req, res, next) => {
         })
         .catch(err => {
             console.log(err);
-            res.send(new ResponseError(err.message, 'error'))
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 

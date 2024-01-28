@@ -8,7 +8,7 @@ const ResponseError = require('../../response/ResponseError')
 const TABLE_NAME = 'diary_category' // 表名
 const DATA_NAME = '日记类别'          // 操作的数据名
 
-router.get('/list', async (req, res, next) => {
+router.get('/list', async (req, res) => {
     // query.name_en
     try
     {
@@ -20,45 +20,38 @@ router.get('/list', async (req, res, next) => {
         }
     }
     catch(err) {
-        res.send(new ResponseError(err, err.message))
+        console.error(err)
+        res.send(new ResponseError(null, 'fatal error'))
     }
 })
 
-router.post('/add', (req, res, next) => {
+router.post('/add', (req, res) => {
     checkCategoryExist(req.body.name_en)
         .then(dataCategoryExistanceArray => {
             // email 记录是否已经存在
             if (dataCategoryExistanceArray.length > 0){
                 return res.send(new ResponseError('', `${DATA_NAME}已存在`))
             } else {
-                utility
-                    .verifyAuthorization(req)
-                    .then(userInfo => {
-                        if (req.user.group_id == 1){
-                            let timeNow = utility.dateFormatter(new Date())
-                            utility.knex(TABLE_NAME).insert({name:req.body.name, name_en: req.body.name_en, color: req.body.color, sort_id: req.body.sort_id, date_init: timeNow})
-                                .then(id => {
-                                    utility.updateUserLastLoginTime(userInfo.uid)
-                                    res.send(new ResponseSuccess({id: id}, '添加成功')) // 添加成功之后，返回添加后的日记 id
-                                })
-                                .catch(err => {
-                                    res.send(new ResponseError(err, `${DATA_NAME}添加失败`))
-                                })
-                        } else {
-                            res.send(new ResponseError('', '无权操作'))
-                        }
-
-                    })
-                    .catch(errInfo => {
-                        res.send(new ResponseError('', errInfo))
-                    })
+                if (req.user.group_id == 1){
+                    let timeNow = utility.dateFormatter(new Date())
+                    utility.knex(TABLE_NAME).insert({name:req.body.name, name_en: req.body.name_en, color: req.body.color, sort_id: req.body.sort_id, date_init: timeNow})
+                        .then(id => {
+                            utility.updateUserLastLoginTime(userInfo.uid)
+                            res.send(new ResponseSuccess({id: id}, '添加成功')) // 添加成功之后，返回添加后的日记 id
+                        })
+                        .catch(err => {
+                            console.error(err)
+                            res.send(new ResponseError(null, `fatal error`))
+                        })
+                } else {
+                    res.send(new ResponseError('', '无权操作'))
+                }
             }
         })
 
 })
-router.put('/modify', (req, res, next) => {
+router.put('/modify', (req, res) => {
     if (req.user.group_id == 1 ){
-        let timeNow = utility.dateFormatter(new Date())
         utility.knex(TABLE_NAME).update({name:req.body.name, count: req.body.count, color: req.body.color, sort_id: req.body.sort_id }).where('name_en', req.body_name_en).returning('id')
             .then(ids => {
                 // ids should be an array of {id:modified_id}
@@ -70,14 +63,15 @@ router.put('/modify', (req, res, next) => {
                 }
             })
             .catch(err => {
-                res.send(new ResponseError(err, `${DATA_NAME}修改失败`))
+                console.error(err)
+                res.send(new ResponseError(null, `fatal error`))
             })
     } else {
         res.send(new ResponseError('', '无权操作'))
     }
 })
-router.delete('/delete', (req, res, next) => {
-    if (req.user.group_id == 1 ){
+router.delete('/delete', (req, res) => {
+    if (req.user.group_id == 1 ) {
         utility.knex(TABLE_NAME).del().where('name_en', req.body.name_en).returning('id')
             .then(ids => {
                 if (ids?.length > 0) { // 没有记录时会返回  undefined
@@ -88,7 +82,8 @@ router.delete('/delete', (req, res, next) => {
                 }
             })
             .catch(err => {
-                res.send(new ResponseError(err, '日记类别删除失败'))
+                console.error(err)
+                res.send(new ResponseError(null, 'fatal error'))
             })
     } else {
         res.send(new ResponseError('', '无权操作'))

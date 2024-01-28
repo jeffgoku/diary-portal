@@ -21,7 +21,8 @@ router.get('/', (req, res, next) => {
             }
         })
         .catch(err => {
-            res.send(new ResponseError(err, err.message))
+            console.error(err)
+            res.send(new ResponseError(null, 'fatal error'))
         })
 })
 

@@ -25,7 +25,7 @@ function comparePassword(password, hashedPassword) {
         hashedPassword = Buffer.from(hashedPassword, 'base64')
     }
 
-    let ver = hashedPassword.readInt8(0)
+    //let ver = hashedPassword.readInt8(0)
     let saltLen = hashedPassword.readInt8(1)
     let iterationCount = hashedPassword.readInt32LE(2)
     let salt = hashedPassword.subarray(6, 6+saltLen)

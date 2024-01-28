@@ -1,8 +1,6 @@
 const fs = require('node:fs')
-const crypto = require('node:crypto')
 
 const configDatabase = require('./configDatabase')
-const configProject = require('./configProject')
 
 let ym_func, y_func, m_func;
 let db_type;
@@ -368,22 +366,21 @@ function dateToString(date) {
 function unicodeEncode(str){
     if(!str)return '';
     if(typeof str !== 'string') return str
-    let text = escape(str);
+    let text = encodeURI(str);
     text = text.replaceAll(/(%u[ed][0-9a-f]{3})/ig, (source, replacement) => {
-        console.log('source: ',source)
         return source.replace('%', '\\\\')
     })
-    return unescape(text);
+    return decodeURI(text);
 }
 
 // text -> unicode
 function  unicodeDecode(str)
 {
-    let text = escape(str);
+    let text = encodeURI(str);
     text = text.replaceAll(/(%5Cu[ed][0-9a-f]{3})/ig, source=>{
         return source.replace('%5C', '%')
     })
-    return unescape(text);
+    return decodeURI(text);
 }
 
 async function updateUserLastLoginTime(uid){

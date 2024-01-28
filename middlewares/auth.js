@@ -1,10 +1,11 @@
 const jwt = require('jsonwebtoken')
 const ResponseError = require('../response/ResponseError')
+const { getJwtSecretKey } = require("../config/cryptoUtils")
 
 // 验证用户是否有权限
 function verifyAuthorization(req, res, next) {
     let token = req.get('Diary-Token') || req.query.token
-    let uid = parseInt(req.get('Diary-Uid'))
+    let uid = parseInt(req.get('Diary-Uid') || req.query.uid)
 
     if (!token)
     {
@@ -27,7 +28,7 @@ function verifyAuthorization(req, res, next) {
             res.status(401).send(new ResponseError('user id wrong', 'error'))
             return
         }
-        if (exp*1000 < new Date().getTime())
+        if (payload.exp*1000 < new Date().getTime())
         {
             if (payload.ip != req.ip)
             {
@@ -35,6 +36,8 @@ function verifyAuthorization(req, res, next) {
                 return
             }
 
+            delete payload.iat
+            delete payload.exp
             token = jwt.sign(payload, key, {'expiresIn': '1d'})
             res.set('X-Refreshed-Token', token)
         }
@@ -43,7 +46,8 @@ function verifyAuthorization(req, res, next) {
     }
     catch(e)
     {
-        res.status(401).send(new ResponseError(e.message, 'error'))
+        console.error(e)
+        res.status(401).send(new ResponseError('authorization error', 'error'))
     }
 }
 
