@@ -364,23 +364,13 @@ function dateToString(date) {
 
 // unicode -> text
 function unicodeEncode(str){
-    if(!str)return '';
-    if(typeof str !== 'string') return str
-    let text = encodeURI(str);
-    text = text.replaceAll(/(%u[ed][0-9a-f]{3})/ig, (source, replacement) => {
-        return source.replace('%', '\\\\')
-    })
-    return decodeURI(text);
+    return str
 }
 
 // text -> unicode
 function  unicodeDecode(str)
 {
-    let text = encodeURI(str);
-    text = text.replaceAll(/(%5Cu[ed][0-9a-f]{3})/ig, source=>{
-        return source.replace('%5C', '%')
-    })
-    return decodeURI(text);
+    return str
 }
 
 async function updateUserLastLoginTime(uid){
