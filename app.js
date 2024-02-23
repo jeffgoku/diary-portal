@@ -15,10 +15,18 @@ const app = express()
 app.set('views', path.join(__dirname, 'views'))
 app.set('view engine', 'pug')
 
+/*
+app.use((req, res, next) => {
+    console.log(req.method + ' ' + req.path)
+    next()
+    console.log('handle request ' + req.path + ' over!')
+})
+*/
+
 app.use(logger('dev'))
 app.use(express.json({limit: '50mb'}))
 app.use(express.urlencoded({ extended: false }))
-app.use(express.static(path.join(__dirname, 'public')))
+app.use(express.static(path.join(__dirname, 'public'), {index: false}))
 
 app.use(cors({
     origin: /http:\/\/localhost/i,

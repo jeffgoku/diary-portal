@@ -5,8 +5,9 @@ let _jwtSecret;
 
 
 function hashPassword(password) {
-    let salt = crypto.randomBytes(16)
     const iterationCount = 10227
+
+    let salt = crypto.randomBytes(16)
     let hashedPassword = crypto.pbkdf2Sync(password, salt, iterationCount, 32, 'sha256')
 
     let b = Buffer.allocUnsafe(1+1+4+16+hashedPassword.length)
@@ -25,7 +26,11 @@ function comparePassword(password, hashedPassword) {
         hashedPassword = Buffer.from(hashedPassword, 'base64')
     }
 
-    //let ver = hashedPassword.readInt8(0)
+    let ver = hashedPassword.readInt8(0)
+    if(ver != 1)
+    {
+        return false;
+    }
     let saltLen = hashedPassword.readInt8(1)
     let iterationCount = hashedPassword.readInt32LE(2)
     let salt = hashedPassword.subarray(6, 6+saltLen)
