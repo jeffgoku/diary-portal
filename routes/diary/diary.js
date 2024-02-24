@@ -178,7 +178,7 @@ router.post('/add', (req, res) => {
 
     utility.knex('diaries').insert({title:parsedTitle, content: parsedContent, category: req.body.category, weather: req.body.weather, 
             temperature: req.body.temperature || 18, temperature_outside: req.body.temperatureOutside || 18,
-            date_create: timeNow, date_modify: timeNow, date: req.body.date, uid: req.user.uid, is_public: req.body.isPublic||0, is_markdown: req.body.isMarkdown || 0}).returning('id')
+            date_create: timeNow, date_modify: timeNow, date: req.body.date, uid: req.user.uid, is_public: req.body.is_public||0, is_markdown: req.body.is_markdown || 0}).returning('id')
         .then(id => {
             utility.knex('users').increment('count_diary', 1).where('uid', req.user.uid).then(() => {})
             utility.updateUserLastLoginTime(req.user.uid)
@@ -205,7 +205,7 @@ router.put('/modify', (req, res) => {
     parsedContent = parsedContent.replaceAll(`'`, `''`)
     let timeNow = utility.dateFormatter(new Date())
     utility.knex('diaries').update({date_modify: timeNow, date: req.body.date, category: req.body.category, title: parsedTitle, content: parsedContent, weather: req.body.weather,
-            temperature: req.body.temperature, temperature_outside: req.body.temperatureOutside, is_public: req.body.isPublic, is_markdown: req.body.isMarkdown})
+            temperature: req.body.temperature, temperature_outside: req.body.temperature_outside, is_public: req.body.is_public, is_markdown: req.body.is_markdown})
         .where('id', req.body.id).andWhere('uid', req.user.uid)
         .then(count => {
             utility.updateUserLastLoginTime(req.user.uid)
