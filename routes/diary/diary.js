@@ -177,7 +177,7 @@ router.post('/add', (req, res) => {
     let timeNow = utility.dateFormatter(new Date())
 
     utility.knex('diaries').insert({title:parsedTitle, content: parsedContent, category: req.body.category, weather: req.body.weather, 
-            temperature: req.body.temperature || 18, temperature_outside: req.body.temperatureOutside || 18,
+            temperature: req.body.temperature || 18, temperature_outside: req.body.temperature_outside || 18,
             date_create: timeNow, date_modify: timeNow, date: req.body.date, uid: req.user.uid, is_public: req.body.is_public||0, is_markdown: req.body.is_markdown || 0}).returning('id')
         .then(id => {
             utility.knex('users').increment('count_diary', 1).where('uid', req.user.uid).then(() => {})
