@@ -176,9 +176,21 @@ router.post('/add', (req, res) => {
     parsedContent = parsedContent.replaceAll(`'`, `''`)
     let timeNow = utility.dateFormatter(new Date())
 
-    utility.knex('diaries').insert({title:parsedTitle, content: parsedContent, category: req.body.category, weather: req.body.weather, 
-            temperature: req.body.temperature || 18, temperature_outside: req.body.temperature_outside || 18,
-            date_create: timeNow, date_modify: timeNow, date: req.body.date, uid: req.user.uid, is_public: req.body.is_public||0, is_markdown: req.body.is_markdown || 0}).returning('id')
+    let newDiary = {
+        title: parsedTitle,
+        content: parsedContent,
+        category: req.body.category,
+        weather: req.body.weather,
+        temperature: req.body.temperature || 18,
+        temperature_outside: req.body.temperature_outside || 18,
+        date_create: timeNow,
+        date_modify: timeNow,
+        date: req.body.date,
+        uid: req.user.uid,
+        is_public: req.body.is_public||0,
+        is_markdown: req.body.is_markdown || 0
+    }
+    utility.knex('diaries').insert(newDiary).returning('id')
         .then(id => {
             utility.knex('users').increment('count_diary', 1).where('uid', req.user.uid).then(() => {})
             utility.updateUserLastLoginTime(req.user.uid)
@@ -189,6 +201,11 @@ router.post('/add', (req, res) => {
             else
             {
                 id = id[0]
+            }
+            newDiary.id = id.id
+            if(req.body.category == 'bill')
+            {
+                id.billData = utility.processBillOfDay(newDiary, [])
             }
             res.send(new ResponseSuccess(id, '添加成功')) // 添加成功之后，返回添加后的日记 id
         })
@@ -204,12 +221,31 @@ router.put('/modify', (req, res) => {
     let parsedContent = utility.unicodeEncode(req.body.content) || ''
     parsedContent = parsedContent.replaceAll(`'`, `''`)
     let timeNow = utility.dateFormatter(new Date())
-    utility.knex('diaries').update({date_modify: timeNow, date: req.body.date, category: req.body.category, title: parsedTitle, content: parsedContent, weather: req.body.weather,
-            temperature: req.body.temperature, temperature_outside: req.body.temperature_outside, is_public: req.body.is_public, is_markdown: req.body.is_markdown})
+
+    let diary = {
+        date_modify: timeNow,
+        date: req.body.date,
+        category: req.body.category,
+        title: parsedTitle,
+        content: parsedContent,
+        weather: req.body.weather,
+        temperature: req.body.temperature,
+        temperature_outside: req.body.temperature_outside,
+        is_public: req.body.is_public,
+        is_markdown: req.body.is_markdown
+    }
+
+    utility.knex('diaries').update(diary)
         .where('id', req.body.id).andWhere('uid', req.user.uid)
         .then(count => {
             utility.updateUserLastLoginTime(req.user.uid)
-            res.send(new ResponseSuccess('', '修改成功'))
+            let ret = ''
+            if(diary.category == 'bill')
+            {
+                diary.id = req.body.id
+                ret = utility.processBillOfDay(diary, [])
+            }
+            res.send(new ResponseSuccess(ret, '修改成功'))
         })
         .catch(err => {
             console.log(err);

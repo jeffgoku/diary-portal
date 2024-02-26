@@ -403,7 +403,6 @@ function processBillOfDay(diaryObj, filterKeywords = []){
 
     let response = {
         id: diaryObj.id,
-        month_id: diaryObj.month_id,
         date: diaryObj.date,
         items: [],
         sum: 0,
