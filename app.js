@@ -15,6 +15,8 @@ const app = express()
 app.set('views', path.join(__dirname, 'views'))
 app.set('view engine', 'pug')
 
+app.disable('etag')
+
 /*
 app.use((req, res, next) => {
     console.log(req.method + ' ' + req.path)

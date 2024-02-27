@@ -32,14 +32,17 @@ function verifyAuthorization(req, res, next) {
         {
             if (payload.ip != req.ip)
             {
+                console.log(`expired token with different ip, orig ip = ${payload.ip}, request ip = ${req.ip}`)
                 res.status(401).send(new ResponseError('expired session', 'error'))
                 return
             }
 
             delete payload.iat
             delete payload.exp
-            token = jwt.sign(payload, key, {'expiresIn': '1d'})
+            token = jwt.sign(payload, key, {expiresIn: '1d'})
             res.set('X-Refreshed-Token', token)
+            //res.set('Last-Modified', new Date().toString())
+            console.log(`issue a new token : ${token}`)
         }
         req.user = payload
         next()

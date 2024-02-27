@@ -80,6 +80,8 @@ async function createTables(knex) {
         await knex.schema.dropTableIfExists('users');
         await knex.schema.dropTableIfExists('user_group');
         await knex.schema.dropTableIfExists('diary_category');
+        await knex.schema.dropTableIfExists('tags');
+        await knex.schema.dropTableIfExists('diary_tag_map');
 
         await knex.schema.createTable('diary_category', function (table) {
             table.tinyint('sort_id').defaultTo(null);
