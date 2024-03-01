@@ -1,6 +1,5 @@
 const express = require('express')
 const router = express.Router()
-const configProject = require('../../config/configProject')
 const utility = require('../../config/utility')
 const ResponseSuccess = require('../../response/ResponseSuccess')
 const ResponseError = require('../../response/ResponseError')
@@ -34,8 +33,16 @@ router.post('/add', (req, res) => {
             } else {
                 if (req.user.group_id == 1){
                     let timeNow = utility.dateFormatter(new Date())
-                    utility.knex(TABLE_NAME).insert({name:req.body.name, name_en: req.body.name_en, color: req.body.color, sort_id: req.body.sort_id, date_init: timeNow})
+                    utility.knex(TABLE_NAME).insert({name:req.body.name, name_en: req.body.name_en, color: req.body.color, sort_id: req.body.sort_id, date_init: timeNow}).returning('id')
                         .then(id => {
+                            if (typeof id[0] == 'number')
+                            {
+                                id = id[0]
+                            }
+                            else
+                            {
+                                id = id[0].id
+                            }
                             utility.updateUserLastLoginTime(userInfo.uid)
                             res.send(new ResponseSuccess({id: id}, '添加成功')) // 添加成功之后，返回添加后的日记 id
                         })

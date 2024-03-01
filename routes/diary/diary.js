@@ -7,7 +7,7 @@ const ResponseError = require('../../response/ResponseError')
 router.get('/list', (req, res) => {
     let startPoint = (req.query.pageNo - 1) * req.query.pageSize // 日记起点
 
-    let query = utility.knex('diaries').select().where('uid', req.user.uid)
+    let query = utility.knex('diaries').select('diaries.*').where('uid', req.user.uid)
 
     // keywords
     if (req.query.keywords){
@@ -50,6 +50,10 @@ router.get('/list', (req, res) => {
         let year = req.query.dateFilter.substring(0,4)
         let month = req.query.dateFilter.substring(4,6)
         query = query.andWhereRaw(`${utility.y_func}='${year}' AND ${utility.m_func}='${month}'`)
+    }
+
+    if (req.query.tag) {
+        query.join('diary_tags', 'diaries.id', 'diary_tags.diary_id').where('diary_tags.tag_id', parseInt(req.query.tag))
     }
 
     query.orderBy('date', 'desc').offset(startPoint).limit(req.query.pageSize)
@@ -286,5 +290,18 @@ router.post('/clear', (req, res) => {
         })
 })
 
+
+router.get('/tags', async (req, res) => {
+    try
+    {
+        const tags = await utility.knex('tags').select(['id', 'name']).join('diary_tags', 'diary_tags.tag_id', 'tags.id').where('diary_tags.diary_id', req.query.diaryId)
+        res.send(new ResponseSuccess(tags))
+    }
+    catch(err)
+    {
+        console.error(err)
+        res.send(new ResponseError(null, 'fatal error'))
+    }
+})
 
 module.exports = router

@@ -81,7 +81,8 @@ async function createTables(knex) {
         await knex.schema.dropTableIfExists('user_group');
         await knex.schema.dropTableIfExists('diary_category');
         await knex.schema.dropTableIfExists('tags');
-        await knex.schema.dropTableIfExists('diary_tag_map');
+        await knex.schema.dropTableIfExists('diary_tags');
+        //await knex.schema.dropTableIfExists('user_tags');
 
         await knex.schema.createTable('diary_category', function (table) {
             table.tinyint('sort_id').defaultTo(null);
@@ -133,6 +134,21 @@ async function createTables(knex) {
                 table.primary(['uid']);
             }
         });
+        
+        await knex.schema.createTable('tags', function (table) {
+            table.primary().increments('id')
+            table.datetime('date_create').notNullable().comment('date create time')
+            table.integer('uid').references('uid').inTable('users').comment('user id')
+            table.string('name').index().comment('tag name')
+        });
+
+        /*
+        await knex.schema.createTable('user_tags', function (table) {
+            table.primary().increments('id')
+            table.datetime('uid').references('uid').inTable('users').comment('user id')
+            table.string('tag_id').references('id').inTable('tags').comment('tag id')
+        });
+        */
 
         await knex.schema.createTable(`file_manager`, function (table) {
             table.primary().increments('id').comment("hash");
@@ -180,6 +196,12 @@ async function createTables(knex) {
             if(isMySql)
                 table.engine('InnoDB');
         });
+
+        await knex.schema.createTable('diary_tags', function (table) {
+            table.primary().increments('id')
+            table.integer('diary_id').references('id').inTable('diaries').comment('diary id')
+            table.integer('tag_id').references('id').inTable('tags').comment('tag id')
+        });
     }
     catch(err)
     {
@@ -190,22 +212,26 @@ async function createTables(knex) {
     return 'ok'
 }
 
+async function createTagsTables() {
+    await knex.schema.createTable('tags', function (table) {
+        table.primary().increments('id')
+        table.datetime('date_create').notNullable().comment('date create time')
+        table.integer('uid').references('uid').inTable('users').comment('user id')
+        table.string('name').index().comment('tag name')
+    });
+
+    await knex.schema.createTable('diary_tags', function (table) {
+        table.primary().increments('id')
+        table.integer('diary_id').references('id').inTable('diaries').comment('diary id')
+        table.integer('tag_id').references('id').inTable('tags').comment('tag id')
+    });
+}
+
 async function createInitData(knex) {
     await knex('diary_category').insert([
-        { sort_id: 9,  name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
-        { sort_id: 3,  name_en: 'bigevent',  name:'大事', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
-        { sort_id: 10, name_en: 'bill',      name:'账单', count:0, color:'#8bc34a', date_init:'2022-05-23 21:23:02'},
-        { sort_id: 8,  name_en: 'film',      name:'电影', count:0, color:'#FF2D70', date_init:'2022-03-23 21:23:02'},
-        { sort_id: 7,  name_en: 'game',      name:'游戏', count:0, color:'#5AC8FA', date_init:'2022-03-23 21:23:02'},
-        { sort_id: 1,  name_en: 'life',      name:'生活', count:0, color:'#FF9500', date_init:'2022-03-23 21:23:02'},
-        { sort_id: 11, name_en: 'memo',      name:'备忘', count:0, color:'#BABABA', date_init:'2022-10-31 17:16:15'},
-        { sort_id: 12, name_en: 'play',      name:'剧本', count:0, color:'#00AAFF', date_init:'2022-12-29 08:44:21'},
-        { sort_id: 13, name_en: 'sentiment', name:'情感', count:0, color:'#00C975', date_init:'2023-01-16 15:21:12'},
-        { sort_id: 4,  name_en: 'sport',     name:'运动', count:0, color:'#FFCC00', date_init:'2022-03-23 21:23:02'},
-        { sort_id: 2,  name_en: 'study',     name:'学习', count:0, color:'#4CD964', date_init:'2022-03-23 21:23:02'},
-        { sort_id: 4,  name_en: 'todo',      name:'待办', count:0, color:'#24C5FF', date_init:'2023-12-12 10:17:35'},
-        { sort_id: 5,  name_en: 'week',      name:'周报', count:0, color:'#5856D6', date_init:'2022-03-23 21:23:02'},
-        { sort_id: 6,  name_en: 'work',      name:'工作', count:0, color:'#007AFF', date_init:'2022-03-23 21:23:02'},
+        { sort_id: 1, name_en: 'article',   name:'文章', count:0, color:'#CC73E1', date_init:'2022-03-23 21:23:02'},
+        { sort_id: 2, name_en: 'bill',      name:'账单', count:0, color:'#8bc34a', date_init:'2022-05-23 21:23:02'},
+        { sort_id: 3, name_en: 'todo',      name:'待办', count:0, color:'#24C5FF', date_init:'2023-12-12 10:17:35'},
     ]);
 
     const groups = [
@@ -286,6 +312,9 @@ async function toDB(k)
     await copyTable(k, 'users');
 
 	await copyTable(k, 'diaries');
+
+    await copyTable(k, 'tags');
+    await copyTable(k, 'diary_tags');
 }
 
 async function toSqliteDB(dbFilename)
@@ -453,7 +482,7 @@ function formatMoney(number){
 module.exports = {
     knex,
     createDB, createTables, createInitData,
-    toSqliteDB,
+    toSqliteDB, createTagsTables,
     dateFormatter, updateUserLastLoginTime,
     unicodeEncode, unicodeDecode,
     // Bill

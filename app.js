@@ -8,6 +8,9 @@ const { verifyAuthorization } = require('./middlewares/auth')
 const utility = require('./config/utility')
 const { unlinkSync } = require('node:fs')
 
+const { checkMigration } = require('./config/migration')
+
+checkMigration()
 
 const app = express()
 
@@ -58,10 +61,12 @@ let routerDiary          = require('./routes/diary/diary')
 let routerDiaryCategory  = require('./routes/diary/diary-category')
 let routerBankCard       = require('./routes/diary/bankCard')
 let routerBill           = require('./routes/diary/bill')
+let routerDiaryTags      = require('./routes/diary/tags')
 app.use('/diary'          , verifyAuthorization, routerDiary)
 app.use('/diary-category' , verifyAuthorization, routerDiaryCategory)
 app.use('/bank-card'      , verifyAuthorization, routerBankCard)      // 银行卡列表
 app.use('/bill'           , verifyAuthorization, routerBill)          // 账单
+app.use('/diary-tags'     , verifyAuthorization, routerDiaryTags)
 
 
 // 图片、文件操作
