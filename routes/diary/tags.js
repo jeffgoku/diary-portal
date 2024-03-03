@@ -9,8 +9,8 @@ const TABLE_NAME = 'tags'
 router.get('/list', async function (req, res) {
     try
     {
-        const data = await utility.knex(TABLE_NAME).select(['id', 'name']).where('uid', req.user.uid)
-        if (data) { // 没有记录时会返回  undefined
+        const data = await utility.knex(TABLE_NAME).select(['id', 'name', 'count']).where('uid', req.user.uid)
+        if (data) {
             res.send(new ResponseSuccess(data))
         } else {
             res.send(new ResponseError('', `查询错误`))
@@ -26,17 +26,8 @@ router.post('/add', async function(req, res) {
     try
     {
         let timeNow = utility.dateFormatter(new Date())
-        const id = await utility.knex(TABLE_NAME).insert({name: req.body.name, date_create: timeNow}).returning('id')
-        if (typeof id[0] == 'number')
-        {
-            id = id[0]
-        }
-        else
-        {
-            id = id[0].id
-        }
-
-        res.send(new ResponseSuccess({id}))
+        const id = await utility.knex(TABLE_NAME).insert(req.body.map(name => ({uid: req.user.uid, name, date_create: timeNow}))).returning('id')
+        res.send(new ResponseSuccess(id.map(i => i.id)))
     }
     catch(err) {
         console.error(err)

@@ -31,11 +31,7 @@ router.get('/list', (req, res) => {
         let categories = JSON.parse(req.query.categories)
         if (categories.length > 0) {
             query = query.andWhere(builder => {
-                builder.where('category', categories[0])
-                for(let i = 1; i<categories.length; ++i)
-                {
-                    builder.orWhere('category', categories[i])
-                }
+                builder.whereIn('category', categories)
             })
         }
     }
@@ -194,29 +190,46 @@ router.post('/add', (req, res) => {
         is_public: req.body.is_public||0,
         is_markdown: req.body.is_markdown || 0
     }
-    utility.knex('diaries').insert(newDiary).returning('id')
-        .then(id => {
-            utility.knex('users').increment('count_diary', 1).where('uid', req.user.uid).then(() => {})
-            utility.updateUserLastLoginTime(req.user.uid)
-            if (typeof id[0] == 'number')
-            {
-                id = {id:id[0]}
-            }
-            else
-            {
-                id = id[0]
-            }
-            newDiary.id = id.id
-            if(req.body.category == 'bill')
-            {
-                id.billData = utility.processBillOfDay(newDiary, [])
-            }
-            res.send(new ResponseSuccess(id, '添加成功')) // 添加成功之后，返回添加后的日记 id
-        })
-        .catch(err => {
-            console.log(err)
-            res.send(new ResponseError(null, 'fatal error'))
-        })
+
+    utility.knex.transaction(async (tx) => {
+        let id = await tx.insert(newDiary).into('diaries').returning('id')
+        if (typeof id[0] == 'number')
+        {
+            id = id[0]
+        }
+        else
+        {
+            id = id[0].id
+        }
+
+        if (req.body.tags) {
+            let timeNow = utility.dateFormatter(new Date())
+            await tx.insert(req.body.tags.map(tid=>{
+                return {diary_id: id, tag_id: tid, date_create: timeNow}
+            })).into('diary_tags')
+
+            await tx.table('tags').increment('count', 1).whereIn('id', req.body.tags)
+        }
+
+        await tx.table('users').increment('count_diary', 1).where('uid', req.user.uid)
+
+        return id
+    })
+    .then(id => {
+        utility.updateUserLastLoginTime(req.user.uid)
+
+        newDiary.id = id
+        let ret = {id}
+        if(req.body.category == 'bill')
+        {
+            ret.billData = utility.processBillOfDay(newDiary, [])
+        }
+        res.send(new ResponseSuccess(ret, '添加成功')) // 添加成功之后，返回添加后的日记 id
+    })
+    .catch(err => {
+        console.log(err)
+        res.send(new ResponseError(null, 'fatal error'))
+    })
 })
 
 router.put('/modify', (req, res) => {
@@ -239,63 +252,81 @@ router.put('/modify', (req, res) => {
         is_markdown: req.body.is_markdown
     }
 
-    utility.knex('diaries').update(diary)
-        .where('id', req.body.id).andWhere('uid', req.user.uid)
-        .then(count => {
-            utility.updateUserLastLoginTime(req.user.uid)
-            let ret = ''
-            if(diary.category == 'bill')
-            {
-                diary.id = req.body.id
-                ret = utility.processBillOfDay(diary, [])
-            }
-            res.send(new ResponseSuccess(ret, '修改成功'))
-        })
-        .catch(err => {
-            console.log(err);
-            res.send(new ResponseError(null, 'fatal error'))
-        })
+    utility.knex.transaction(async tx => {
+        await tx.update(diary).table('diaries').where('id', req.body.id).andWhere('uid', req.user.uid)
+
+        if (req.body.new_tags?.length > 0) {
+            let timeNow = utility.dateFormatter(new Date())
+            await tx.table('diary_tags').insert(req.body.new_tags.map(t => ({diary_id: req.body.id, tag_id: t, date_create: timeNow})))
+            await tx.table('tags').increment('count', 1).whereIn('id', req.body.new_tags)
+        }
+        if (req.body.del_tags?.length > 0) {
+            await tx.table('diary_tags').del().where('diary_id', req.body.id).whereIn('tag_id', req.body.del_tags)
+            await tx.table('tags').decrement('count', 1).whereIn('id', req.body.del_tags)
+        }
+
+        let ret = ''
+        if(diary.category == 'bill')
+        {
+            diary.id = req.body.id
+            ret = utility.processBillOfDay(diary, [])
+        }
+        utility.updateUserLastLoginTime(req.user.uid)
+        res.send(new ResponseSuccess(ret, '修改成功'))
+    })
+    .catch(err => {
+        console.log(err);
+        res.send(new ResponseError(null, 'fatal error'))
+    })
 })
 
 router.delete('/delete', (req, res) => {
-    utility.knex('diaries').del().where('id', req.body.diaryId).andWhere('uid', req.user.uid)
-        .then(affectedRows => {
-            if (affectedRows > 0) {
-                utility.knex('users').decrement('count_diary', 1).then(() => {})
-                utility.updateUserLastLoginTime(req.user.uid)
-                res.send(new ResponseSuccess('', '删除成功'))
-            } else {
-                res.send(new ResponseError('', '删除失败'))
-            }
-        })
-        .catch(err => {
-            console.log(err)
-            res.send(new ResponseError(null,'fatal error'))
-        })
+    utility.knex.transaction(async tx => {
+        let affectedRows = await tx.del().table('diaries').where('id', req.body.diaryId).andWhere('uid', req.user.uid)
+        if (affectedRows > 0) {
+            await tx.table('users').decrement('count_diary', 1).where('uid', req.user.uid)
+            await tx.table('diary_tags').del().where('diary_id', req.body.diaryId)
+        }
+
+        return affectedRows
+    })
+    .then(affectedRows => {
+        utility.updateUserLastLoginTime(req.user.uid)
+        if (affectedRows > 0) {
+            res.send(new ResponseSuccess('', '删除成功'))
+        } else {
+            res.send(new ResponseError('', '删除失败'))
+        }
+    })
+    .catch(err => {
+        console.log(err)
+        res.send(new ResponseError(null,'fatal error'))
+    })
 })
 
-router.post('/clear', (req, res) => {
-    if (userInfo.email === 'test@163.com'){
+router.post('/clear', async (req, res) => {
+    if (req.user.email === 'test@163.com'){
         res.send(new ResponseError('', '演示帐户不允许执行此操作'))
         return
     }
-    utility.knex('diaries').del().where('uid', req.user.uid)
-        .then(affectedRows => {
-            utility.updateUserLastLoginTime(req.user.uid)
-            res.send(new ResponseSuccess({affectedRows}, `清空成功：${affectedRows} 条日记`))
-        })
-        .catch(err => {
-            console.log(err);
-            res.send(new ResponseError(null, 'fatal error'))
-        })
+    try{
+        let affectedRows = await utility.knex('diaries').del().where('uid', req.user.uid)
+        utility.updateUserLastLoginTime(req.user.uid)
+        res.send(new ResponseSuccess({affectedRows}, `清空成功：${affectedRows} 条日记`))
+    }
+    catch(err) {
+        console.log(err);
+        res.send(new ResponseError(null, 'fatal error'))
+    }
 })
 
 
 router.get('/tags', async (req, res) => {
     try
     {
-        const tags = await utility.knex('tags').select(['id', 'name']).join('diary_tags', 'diary_tags.tag_id', 'tags.id').where('diary_tags.diary_id', req.query.diaryId)
-        res.send(new ResponseSuccess(tags))
+        // const tags = await utility.knex('tags').select(['id', 'name']).join('diary_tags', 'diary_tags.tag_id', 'tags.id').where('diary_tags.diary_id', req.query.diaryId)
+        const tags = await utility.knex('diary_tags').select(utility.knex.raw('tag_id as id')).where('diary_id', req.query.diaryId)
+        res.send(new ResponseSuccess(tags.map(t => t.id)))
     }
     catch(err)
     {
