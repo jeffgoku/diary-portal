@@ -7,12 +7,19 @@ const cors = require('cors')
 const { verifyAuthorization } = require('./middlewares/auth')
 const utility = require('./config/utility')
 const { unlinkSync } = require('node:fs')
+//const process = require('node:process')
 
 const { checkMigration } = require('./config/migration')
 
 checkMigration()
 
 const app = express()
+
+const isDev = app.get('env') === 'development'
+
+if (isDev) {
+    console.log(`current in development mode, set NODE_ENV to production to turn development mode off`)
+}
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'))
@@ -97,7 +104,7 @@ app.use((req, res, next) => {
 app.use((err, req, res, next) => {
   // set locals, only providing error in development
   res.locals.message = err.message
-  res.locals.error = req.app.get('env') === 'development' ? err : {}
+  res.locals.error = isDev ? err : {}
 
   // render the error page
   res.status(err.status || 500)
