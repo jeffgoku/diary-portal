@@ -27,6 +27,8 @@ app.set('view engine', 'pug')
 
 app.disable('etag')
 
+app.set('trust proxy', 'loopback')
+
 /*
 app.use((req, res, next) => {
     console.log(req.method + ' ' + req.path)
