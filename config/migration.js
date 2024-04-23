@@ -13,7 +13,7 @@ async function createMigrationTable()
         });
 
         let timeNow = dateFormatter(new Date())
-        await knex.table('migration').insert({date_create: timeNow, version: 0})
+        await knex.table('migration').insert({date_create: timeNow, last_migration_date: timeNow, version: 0})
         console.log('create migration table')
     }
     let version = await knex.table('migration').select('version').limit(1)
