@@ -215,6 +215,7 @@ async function createTables(knex) {
             table.integer('uid').notNullable().references('uid').inTable('users').onDelete('cascade').onUpdate('restrict').comment('用户ID');
             table.smallint('is_public',1).notNullable().defaultTo(0).comment('是否共享');
             table.smallint('is_markdown',1).notNullable().defaultTo(0).comment('是否为markdown');
+            table.smallint('is_encrypted', 1).notNullable().defaultTo(0).comment("是否加密笔记");
 
             if(isMySql)
                 table.engine('InnoDB');

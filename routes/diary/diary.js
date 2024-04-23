@@ -188,7 +188,8 @@ router.post('/add', (req, res) => {
         date: req.body.date,
         uid: req.user.uid,
         is_public: req.body.is_public||0,
-        is_markdown: req.body.is_markdown || 0
+        is_markdown: req.body.is_markdown || 0,
+        is_encrypted: req.body.is_encrypted || 0,
     }
 
     utility.knex.transaction(async (tx) => {
@@ -202,7 +203,7 @@ router.post('/add', (req, res) => {
             id = id[0].id
         }
 
-        if (req.body.tags) {
+        if (req.body.tags.length > 0) {
             let timeNow = utility.dateFormatter(new Date())
             await tx.insert(req.body.tags.map(tid=>{
                 return {diary_id: id, tag_id: tid, date_create: timeNow}
@@ -249,7 +250,8 @@ router.put('/modify', (req, res) => {
         temperature: req.body.temperature,
         temperature_outside: req.body.temperature_outside,
         is_public: req.body.is_public,
-        is_markdown: req.body.is_markdown
+        is_markdown: req.body.is_markdown,
+        is_encrypted: req.body.is_encrypted,
     }
 
     utility.knex.transaction(async tx => {
